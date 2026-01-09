@@ -1,0 +1,47 @@
+% function eye_track_automatic1()
+function eye_track_automatic1(task_no,fault_no_list,fault_no)
+global pts Calib trackerId id_num
+clc
+% clear all
+% close all
+% *************************************************************************
+%
+% Initialization and connection to the Tobii Eye-tracker
+%
+% *************************************************************************
+ 
+tetio_init();
+
+trackerId = 'TX300-010103300552.local.';
+tetio_connectTracker(trackerId);
+currentFrameRate = tetio_getFrameRate;
+% load('D:\Final Code Setup data mixed case-1\13310022_Eye_parameter');
+SetCalibParams; 
+close all;
+% Display the track status window showing the participant's eyes (to position the participant).
+TrackStatus; % Track status window will stay open until user key press.
+% disp('TrackStatus stopped');
+% % remove the comment when doing the practical first time as we need to
+% calilbrate the eyes
+clc;
+disp('Press enter to start Calibration workflow');
+pause();
+% % Perform calibration
+% SetCalibParams; 
+
+pts = HandleCalibWorkflow(Calib);
+
+% disp('Calibration workflow stopped');
+
+temp_name = ['data\matlab-data\' num2str(id_num) '_Eye_parameter'];
+save(temp_name);
+
+% setDesktopVisibility('off')
+making_ready_for(task_no,fault_no_list,fault_no);
+
+% gui_changed_color()
+
+% tetio_stopTracking; 
+% csvwrite('gazedataleft.csv', leftEyeAll);
+
+end

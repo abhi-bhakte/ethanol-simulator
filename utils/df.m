@@ -1,0 +1,1 @@
+setDesktopVisibility('on')

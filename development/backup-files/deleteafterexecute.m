@@ -1,0 +1,5 @@
+disp('I am Punit')
+a=5;
+msgbox('I will finish thig Bug today')
+p=4*a;
+disp(p)

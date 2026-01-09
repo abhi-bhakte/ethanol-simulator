@@ -1,0 +1,9 @@
+
+ID No: = 478 
+
+sequence of task: = 8   7   5  12  11  10 
+Start Time = 11-11-2025 10:18:24 019 
+Automatic Shutdown 
+Start Time = 11-11-2025 11:35:33 334 
+Automatic Shutdown 
+Start Time = 11-11-2025 11:47:50 837 

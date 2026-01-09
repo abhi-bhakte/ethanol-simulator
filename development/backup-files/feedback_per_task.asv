@@ -1,0 +1,491 @@
+function feedback_per_task(task_no,fault_no_list,fault_no)
+
+
+clc
+clear submit_flag
+global  fid_task_ques f_feedback_task edit_box_task f_new_task time_start fid_only_ans text_submit
+beep off
+global task_no_feed fault_no_list_feed fault_no_feed
+global queans1 queans2 queans3 queans4 queans5 no_of_tasks
+global submit_flag
+global time_track_count time_track_for_experiment t_start_exp
+
+task_no_feed = task_no;
+fault_no_feed = fault_no;
+fault_no_list_feed = fault_no_list;
+submit_flag = 0;
+f_feedback_task = figure('Visible','on','Name','Feedback Form',...
+    'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
+    'Position',[330,40,940,750],'Resize','on','color',[1 1 1]);
+
+% curr_axe = get(f_feedback_task,'CurrentAxes');
+
+text_submit  = uicontrol(f_feedback_task,'Style','text','foregroundcolor',[1 0 0],'Units','points',...
+    'fontsize',14,'Position',[650,40,200,25],'visible','off','String','Give answer to each question');
+
+f_new_task = figure('Visible','off','Name','Go to next scenario',...
+    'Menubar','none','Toolbar','none','Units','points','NumberTitle','off',...
+    'Position',[330,240,750,375],'Resize','off','color',[1 1 1]);
+
+
+% set(f_feedback_task,'CloseRequestFcn',@close_feedback_form);
+
+close_button_press = uicontrol(f_feedback_task,'Visible','off','Style','text','Position',[650,680,200,50], 'fontsize',14,'foregroundcolor',[1 0 0],'Units','points','String','Give answer to each question and press Submit');
+
+% ch = 
+% bold1 = uicontrol(f_feedback_task,'Style','text','String','cause','Units','points','fontsize',15,'Position',[325, 705,80,20],'visible','on','fontweight','bold');
+
+ques_text1 = uicontrol(f_feedback_task,'Style','text','String','1. What was the cause of abnormality in this scenario?','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',15,'Position',[10, 695,600,50],'visible','on');
+
+ques_text2 = uicontrol(f_feedback_task,'Style','text','String','2. How confident are you about your answer to the above question?','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',15,'Position',[10, 500,800,50],'visible','on');
+
+ques_text3 = uicontrol(f_feedback_task,'Style','text','String','3. How did you operate the plant to recover from the disturbances?','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',15,'Position',[10, 400,800,50],'visible','on');
+
+text_for_q3 = uicontrol(f_feedback_task,'Style','text','String','[Please type your answer in box below. Try to give precise answer.]','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',12,'Position',[120, 375,600,50],'visible','off');
+
+ques_text4 = uicontrol(f_feedback_task,'Style','text','String','4. How confident were you regarding controlling of disturbed plant during simulation of this scenario?','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',15,'Position',[10, 290,800,50],'visible','on');
+
+ques_text5 = uicontrol(f_feedback_task,'Style','text','String','5. Which of the following did you find most useful for controlling the plant?','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',15,'Position',[10, 195,800,45],'visible','on');
+
+ques_text6 = uicontrol(f_feedback_task,'Style','text','String','6. Which of the following did you find least useful for controlling the plant?','foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',15,'Position',[10, 100,800,50],'visible','on');
+
+ch_text = sprintf('Completion of Scenario %d',task_no);
+text_new_task = uicontrol(f_new_task,'Style','text','String',ch_text,'backgroundcolor',[1 1 1],'foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',19,'Position',[150, 300,250,50],'visible','on');
+
+text_new_task2 = uicontrol(f_new_task,'Style','text','String','Press ''Next Scenario'' to continue------>','backgroundcolor',[1 1 1],'foregroundcolor',[0 0 0],'Units','points',...
+    'fontsize',19,'Position',[150, 200,250,50],'visible','on');
+
+next_scenario = uicontrol(f_new_task,'Style','pushbutton','Units','points','Position',[450,200,100,25],'String','Next Scenario','fontsize',15,'visible','on','Callback',@next_scen);
+
+
+
+
+four_option = uibuttongroup(f_feedback_task,'visible','on');
+four_option_2  = uibuttongroup(f_feedback_task,'visible','on');
+three_option = uibuttongroup(f_feedback_task,'visible','on');
+three_option_2 = uibuttongroup(f_feedback_task,'visible','on');
+eight_option = uibuttongroup(f_feedback_task,'visible','on');
+
+set(four_option,'SelectionChangeFcn',@four_option_callback);
+set(four_option_2,'SelectionChangeFcn',@four_option_2_callback);
+set(eight_option,'SelectionChangeFcn',@eight_option_callback);
+set(three_option,'SelectionChangeFcn',@three_option_callback);
+set(three_option_2,'SelectionChangeFcn',@three_option_2_callback);
+
+fid_task_ques = fopen('feedback_for_tasks.txt','at+');
+
+fprintf(fid_task_ques,'\n-----------------------------------Task %d---------------------------',task_no);
+fprintf(fid_task_ques,'\n-----------------------------------Fault No %d-----------------------',fault_no);
+fprintf(fid_task_ques,'\n START TIME = %s',datestr(now));
+
+buttonColor = [ 1 1 1];
+
+% Check box for question 1
+task_check1 = uicontrol(f_feedback_task,'parent',four_option,'Style','radiobutton','String','Not at all','Units','points','Position',[25+100 480,10,10],'visible','on');
+task_check2 = uicontrol(f_feedback_task,'parent',four_option,'Style','radiobutton','String','A little bit','Units','points','Position',[95+50+50+100 480,10,10],'visible','on');
+task_check3 = uicontrol(f_feedback_task,'parent',four_option,'Style','radiobutton','String','Mostly','Units','points','Position',[165+90+120+100 480,10,10],'visible','on');
+task_check4 = uicontrol(f_feedback_task,'parent',four_option,'Style','radiobutton','String','Completely','Units','points','Position',[235+130+180+100 480,10,10],'visible','on');
+% task_check5 = uicontrol(f_feedback_task,'Style','checkbox','backgroundcolor',buttonColor,'Units','points','Position',[305+170+240 425,10,10],'Callback',@c5,'visible','on');
+
+% for new question 
+task_check_2_1 = uicontrol(f_feedback_task,'parent',four_option_2,'Style','radiobutton','String','Not at all','Units','points','Position',[25+100 260,10,10],'visible','on');
+task_check_2_2 = uicontrol(f_feedback_task,'parent',four_option_2,'Style','radiobutton','String','A little bit','Units','points','Position',[95+50+50+100 260,10,10],'visible','on');
+task_check_2_3 = uicontrol(f_feedback_task,'parent',four_option_2,'Style','radiobutton','String','Mostly','Units','points','Position',[165+90+120+100 260,10,10],'visible','on');
+task_check_2_4 = uicontrol(f_feedback_task,'parent',four_option_2,'Style','radiobutton','String','Completely','Units','points','Position',[235+130+180+100 260,10,10],'visible','on');
+
+
+% Check box for question 2
+
+option1 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Change in feed flow rate to CSTR','Units','points','Position',[50+25 680,10,10],'visible','on'); %335
+option2 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Catalyst poisoning','Units','points','Position',[75 645,10,10],'visible','on');
+option3 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Change in cooling water flow rate in CSTR jacket','Units','points','Position',[75 610,10,10],'visible','on');
+option4 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Change in feed flow rate to distillation column inlet','Units','points','Position',[75 575,10,10],'visible','on');
+option5 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Imbalance in reflux ratio','Units','points','Position',[555 680,10,10],'visible','on');
+option6 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Reboiler power failure','Units','points','Position',[555 645,10,10],'visible','on');
+option7 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','Change in incoming cooling water temperature','Units','points','Position',[555 610,10,10],'visible','on');
+option8 = uicontrol(f_feedback_task,'parent',eight_option,'Style','radiobutton','String','None of the above','Units','points','Position',[555 575,10,10],'visible','on');
+% Edit box for question 3
+
+edit_box_task = uicontrol(f_feedback_task,'Style','edit','Units','points','Position',[180 380 550 25],'visible','on','Min',6,'Max',5,'backgroundcolor',[1 1 1]);
+
+
+% For next option
+
+next_box = uicontrol(f_feedback_task,'Style','pushbutton','Units','points','Position',[725,20,100,25],'String','Submit','fontsize',15,'visible','on','Callback',@feed_ques_next);
+
+% Text box for question 1
+
+text_check1 = uicontrol(f_feedback_task,'Style','text','String','Not at all','Units','points','fontsize',15,'Position',[10+100 490,75,30],'visible','on');
+text_check2 = uicontrol(f_feedback_task,'Style','text','String','A little bit','Units','points','fontsize',15,'Position',[165+100 490,75,30],'visible','on');
+text_check3 = uicontrol(f_feedback_task,'Style','text','String','Mostly','Units','points','fontsize',15,'Position',[345+100 490,75,30],'visible','on');
+text_check4 = uicontrol(f_feedback_task,'Style','text','String','Completely','Units','points','fontsize',15,'Position',[525+100 490,75,30],'visible','on');
+% text_check5 = uicontrol(f_feedback_task,'Style','text','String','Very much','Units','points','fontsize',15,'Position',[685 440,75,30],'visible','on','backgroundcolor',[1 1 1]);
+
+% text box for question 3
+text_check_2_1 = uicontrol(f_feedback_task,'Style','text','String','Not at all','Units','points','fontsize',15,'Position',[10+100 270,75,30],'visible','on');
+text_check_2_2 = uicontrol(f_feedback_task,'Style','text','String','A little bit','Units','points','fontsize',15,'Position',[165+100 270,75,30],'visible','on');
+text_check_2_3 = uicontrol(f_feedback_task,'Style','text','String','Mostly','Units','points','fontsize',15,'Position',[345+100 270,75,30],'visible','on');
+text_check_2_4 = uicontrol(f_feedback_task,'Style','text','String','Completely','Units','points','fontsize',15,'Position',[525+100 270,75,30],'visible','on');
+
+
+% Text box for question 2
+text_option1 = uicontrol(f_feedback_task,'Style','text','String','Change in feed flow rate to CSTR','Units','points','fontsize',15,'Position',[90 660+5,250,30],'visible','on');
+text_option2 = uicontrol(f_feedback_task,'Style','text','String','Catalyst poisoning','Units','points','fontsize',15,'Position',[95 625+5,135,30],'visible','on');
+text_option3 = uicontrol(f_feedback_task,'Style','text','String','Change in cooling water flow rate in CSTR jacket','Units','points','fontsize',15,'Position',[95 590+5,340,30],'visible','on');
+text_option4 = uicontrol(f_feedback_task,'Style','text','String','Change in feed flow rate to distillation column inlet','Units','points','fontsize',15,'Position',[85 555+5,370,30],'visible','on');
+text_option5 = uicontrol(f_feedback_task,'Style','text','String','Imbalance in reflux ratio','Units','points','fontsize',15,'Position',[570 660+5,180,30],'visible','on');
+text_option6 = uicontrol(f_feedback_task,'Style','text','String','Reboiler power failure','Units','points','fontsize',15,'Position',[570 625+5,170,30],'visible','on');
+text_option7 = uicontrol(f_feedback_task,'Style','text','String','Change in incoming cooling water temperature','Units','points','fontsize',15,'Position',[570 590+5,330,30],'visible','on');
+text_option8 = uicontrol(f_feedback_task,'Style','text','String','None of the above','Units','points','fontsize',15,'Position',[570 555+5,150,30],'visible','on');
+
+
+% for question 4
+three_opt1 = uicontrol(f_feedback_task,'parent',three_option,'Style','radiobutton','String','Alarm summary','Units','points','Position',[200 170,10,10],'HandleVisibility','off');
+three_opt2 = uicontrol(f_feedback_task,'parent',three_option,'Style','radiobutton','String','Process variable trend','Units','points','Position',[400 170,10,10],'HandleVisibility','off');
+three_opt3 = uicontrol(f_feedback_task,'parent',three_option,'Style','radiobutton','String','Process knowledge','Units','points','Position',[600 170,10,10],'HandleVisibility','off');
+
+text_opt1 = uicontrol(f_feedback_task,'Style','text','String','Alarm summary','Units','points','fontsize',15,'Position',[125 180,150,30],'visible','on');
+text_opt2 = uicontrol(f_feedback_task,'Style','text','String','Process variable trend','Units','points','fontsize',15,'Position',[325 180,150,30],'visible','on');
+text_opt3 = uicontrol(f_feedback_task,'Style','text','String','Process knowledge','Units','points','fontsize',15,'Position',[525 180,150,30],'visible','on');
+
+% for question 5
+three_opt_2_1 = uicontrol(f_feedback_task,'parent',three_option_2,'Style','radiobutton','String','Alarm summary','Units','points','Position',[200 80,10,10],'HandleVisibility','off');
+three_opt_2_2 = uicontrol(f_feedback_task,'parent',three_option_2,'Style','radiobutton','String','Process variable trend','Units','points','Position',[400 80,10,10],'HandleVisibility','off');
+three_opt_2_3 = uicontrol(f_feedback_task,'parent',three_option_2,'Style','radiobutton','String','Process knowledge','Units','points','Position',[600 80,10,10],'HandleVisibility','off');
+
+text_opt_2_1 = uicontrol(f_feedback_task,'Style','text','String','Alarm summary','Units','points','fontsize',15,'Position',[125 90,150,30],'visible','on');
+text_opt_2_2 = uicontrol(f_feedback_task,'Style','text','String','Process variable trend','Units','points','fontsize',15,'Position',[325 90,150,30],'visible','on');
+text_opt_2_3 = uicontrol(f_feedback_task,'Style','text','String','Process knowledge','Units','points','fontsize',15,'Position',[525 90,150,30],'visible','on');
+   
+clc
+
+uncheck_all
+
+    function feed_ques_next(varargin)
+        
+        
+        [flag,ind] = check_for_next;
+        
+%         flag
+%         pause(2)
+         if flag==1
+             time_track_count = time_track_count+1;
+        time_track_for_experiment(time_track_count) = toc(t_start_exp);
+             clc;
+             time_St = datestr(now);
+      
+            fprintf(fid_task_ques,'\n--------------------------------------------------------------\n');
+           ch = 'What was the cause of disturbance in this scenario?';
+            temp =cell2mat(ind(1));
+        fprintf(fid_task_ques,'\n%s \n %s\n\n',ch,(temp));
+        fprintf(fid_only_ans,'\n%s',temp);
+        
+        ch = 'How confident are you about the correctness of answer of previous question?';
+         temp =cell2mat(ind(2));
+        fprintf(fid_task_ques,'\n%s \n %s\n\n',ch,(temp));
+       fprintf(fid_only_ans,'\n%s',temp);
+       
+       ch = 'How did you operate the plant to recover from the disturbances?'; 
+       temp = get(edit_box_task,'String');
+       if length(temp)<10
+           temp = 'Nothing written at all';
+       end
+        fprintf(fid_task_ques,'\n%s \n %s\n\n',ch,(temp));
+%         fprintf(fid_only_ans,'\n%s',temp);
+       
+        ch = 'How confident were you regarding controlling of disturbed plant during simulation of this scenario?';
+        temp =cell2mat(ind(3));
+        fprintf(fid_task_ques,'\n%s \n %s\n\n',ch,(temp));
+        fprintf(fid_only_ans,'\n%s',temp);
+       
+        ch = 'Which of the following did you find most useful for controlling the plant?';
+        temp =cell2mat(ind(4));
+        fprintf(fid_task_ques,'\n%s \n %s\n\n',ch,(temp));
+        fprintf(fid_only_ans,'\n%s',temp);
+       
+        ch = 'Which of the following did you find least useful for controlling the plant?';
+        temp =cell2mat(ind(5));
+        fprintf(fid_task_ques,'\n%s \n %s\n\n',ch,(temp));
+           fprintf(fid_task_ques,'\n STOP TIME = %s',time_St);
+        fprintf(fid_only_ans,'\n%s',temp);
+       
+        fprintf(fid_task_ques,'\n--------------------------------------------------------------\n');
+        uncheck_all
+%            
+    submit_flag = 1;
+     close(f_feedback_task);
+            if task_no_feed~=no_of_tasks
+            set(f_new_task,'visible','on');
+            else 
+                 fprintf(fid_task_ques,'\n==========================================================================================');
+
+%                 feedback_form_gui;
+time_of_stop = datestr(now,'dd-mm-yyyy HH:MM:SS FFF');
+         time_track_count = time_track_count+1;  % for start of feeedback form 
+        time_track_for_experiment(time_track_count) = toc(t_start_exp);
+        TrackStop
+        toc
+%         fprintf(fid_feed,'\n STOP TIME = %s', datestr(now));
+%         count = count + 1;
+%         ch = get(edit_box,'String');
+%         set(edit_box,'visible','off');
+%         fprintf(fid_feed,'\n%s',ch);
+%         set(ques_text,'visible','off');
+%         make_check_box_off
+%         set(submit_button,'visible','off');
+        b = axes('Parent',f_feedback,'HandleVisibility','callback','NextPlot','replacechildren', 'Units','points', 'Position',[-320 20 1387 528]);
+        imshow('Thanks.jpg','Parent',b);
+%     fclose(fid_feed);
+    pause(0.5)
+%     close(f_feedback);
+    
+    %% writing into excel file mouse movement
+    for i = 1:no_of_tasks
+%         k = fault_list(i);
+       t_store =  eval(sprintf('textread(''task_no_%d.txt'');',i));
+       ty = time_start_first;
+       ty([12 15 18]) = '_'; 
+       eval(sprintf('xlswrite(''Mouse_movement_%s.xlsx'',t_store,%d);',ty,i));
+%        xlswrite('Mouse_movement.xlsx',t_store,i);
+        eval(sprintf('delete(''task_no_%d.txt'');',i));
+        
+       setDesktopVisibility('on')
+    end
+                
+            end
+           
+           
+         else 
+             set(text_submit,'visible','on');
+        end
+        
+        
+
+    end
+
+
+
+
+
+    function next_scen(varargin)
+        clc
+        close(f_new_task);
+        task_no_feed = task_no_feed + 1;
+            
+            
+            
+            if task_no_feed==no_of_tasks +1 
+                fprintf(fid_task_ques,'\n==========================================================================================');
+
+%                 feedback_form_gui;
+time_of_stop = datestr(now,'dd-mm-yyyy HH:MM:SS FFF');
+         time_track_count = time_track_count+1;  % for start of feeedback form 
+        time_track_for_experiment(time_track_count) = toc(t_start_exp);
+        TrackStop
+        toc
+        fprintf(fid_feed,'\n STOP TIME = %s', datestr(now));
+%         count = count + 1;
+%         ch = get(edit_box,'String');
+%         set(edit_box,'visible','off');
+%         fprintf(fid_feed,'\n%s',ch);
+%         set(ques_text,'visible','off');
+%         make_check_box_off
+%         set(submit_button,'visible','off');
+        b = axes('Parent',f_feedback_task,'HandleVisibility','callback','NextPlot','replacechildren', 'Units','points', 'Position',[-320 20 1387 528]);
+        imshow('Thanks.jpg','Parent',b);
+    fclose(fid_feed);
+    pause(0.5)
+%     close(f_feedback);
+    
+    %% writing into excel file mouse movement
+    for i = 1:no_of_tasks
+%         k = fault_list(i);
+       t_store =  eval(sprintf('textread(''task_no_%d.txt'');',i));
+       ty = time_start_first;
+       ty([12 15 18]) = '_'; 
+       eval(sprintf('xlswrite(''Mouse_movement_%s.xlsx'',t_store,%d);',ty,i));
+%        xlswrite('Mouse_movement.xlsx',t_store,i);
+        eval(sprintf('delete(''task_no_%d.txt'');',i));
+        
+       setDesktopVisibility('on')
+    end
+                
+                
+            else
+                fprintf(fid_task_ques,'\n==========================================================================================');
+
+                fault_no_feed = fault_no_list_feed(task_no_feed);
+%                 task_no_feed
+               making_ready_for(task_no_feed,fault_no_list_feed,fault_no_feed);
+            end
+    
+    end
+
+
+    function [flag,ind] = check_for_next
+        
+        ch=[];
+        ch1=[];
+        ch2=[];
+        ch3=[];
+        ch4=[];
+        ch5=[];
+        
+        ind=cell(5,1);
+        if ~isempty(queans1)
+            ind{1} = queans1;
+            ch = 1;
+        end
+           
+        if ~isempty(queans2)
+            ind{2} = queans2;
+            ch1 = 1;
+        end
+        
+        if ~isempty(queans3)
+            ind{3} = queans3;
+            ch2 = 1;
+        end
+        
+        if ~isempty(queans4)
+            ind{4} = queans4;
+            ch3 = 1;
+        end
+        
+        
+        if ~isempty(queans5)
+            ind{5} = queans5;
+            ch4 = 1;
+        end
+        
+        if ~isempty(get(edit_box_task,'String'))
+            ch5=1;
+        end
+        
+        if ~isempty(ch) && ~isempty(ch1) && ~isempty(ch2) && ~isempty(ch3) && ~isempty(ch4) && ~isempty(ch5)
+            flag = 1;
+        else 
+            flag = 0;
+        end
+        
+    end
+
+
+
+
+
+
+
+     function eight_option_callback(source,eventdata)
+    
+        queans1= get(eventdata.NewValue,'String');
+        [flag,ind] = check_for_next;
+        if flag==1
+            set(text_submit,'visible','off');
+        end
+        
+    end
+    function four_option_callback(source,eventdata)
+    
+        queans2= get(eventdata.NewValue,'String');
+        [flag,ind] = check_for_next;
+        if flag==1
+            set(text_submit,'visible','off');
+        end
+        
+    end
+function four_option_2_callback(source,eventdata)
+    
+        queans3= get(eventdata.NewValue,'String');
+        [flag,ind] = check_for_next;
+        if flag==1
+            set(text_submit,'visible','off');
+        end
+        
+end
+        
+    function three_option_callback(source,eventdata)
+        queans4 = get(eventdata.NewValue,'String');
+        [flag,ind] = check_for_next;
+        if flag==1
+            set(text_submit,'visible','off');
+        end
+    end
+   
+ 
+    function three_option_2_callback(source,eventdata)
+        queans5 = get(eventdata.NewValue,'String');
+        [flag,ind] = check_for_next;
+        if flag==1
+            set(text_submit,'visible','off');
+        end
+    end
+
+    function uncheck_all(varargin)
+    for iii = 1:4
+            
+            eval(sprintf('set(task_check%d,''Value'',0);',iii));
+            
+    end
+    for iii = 1:4
+            
+            eval(sprintf('set(task_check_2_%d,''Value'',0);',iii));
+            
+    end
+        for iii = 1:8
+            
+            eval(sprintf('set(option%d,''Value'',0);',iii));
+            
+        end
+        for iii = 1:3
+            
+            eval(sprintf('set(three_opt%d,''Value'',0);',iii));
+            
+        end
+        
+        for iii = 1:3
+            
+            eval(sprintf('set(three_opt_2_%d,''Value'',0);',iii));
+            
+        end
+        
+        set(edit_box_task,'String','         ');
+        
+        queans1=[];
+        queans2=[];
+        queans3=[];
+        queans4=[];
+        queans5=[];
+        
+        
+    end
+
+
+    function close_feedback_form(varargin)
+       if submit_flag ==1
+           close(f_feedback_task);
+       
+       else 
+%             bttnChoiseDialog({'Continue'},'Need to press continue','Ok','Give answer to each question')
+%              
+         set(close_button_press,'visible','on');
+          pause(2)
+          set(close_button_press,'visible','off');
+       end
+        
+       
+    end
+
+end
+
+
+
+

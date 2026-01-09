@@ -1,0 +1,1111 @@
+% function gui_changed_color()
+function gui_changed_color(task_no,fault_no_list,fault_no)
+% clc;
+% % clear all;
+% close all;
+% task_no =1;
+% fault_no_list =[1 2 5 7 1 2 5 7 1 2];
+% fault_no =1;
+
+% Add monitoring functions to path
+addpath('monitoring');
+addpath('utils');
+
+beep off
+import valve.*
+
+global sequence_task es_flag task_complete_flag ty file_clk time_duration_seconds
+global no_of_tasks Calib pts trackerId leftEyeAll rightEyeAll timeStampAll 
+global task_no_lo fault_no_list_lo fault_no_lo f_ref f2_ref calibration_completed calibration_step
+global f f2 b_image ans_pv_1 ans_pv_2 ans_pv_3 ans_pv_4 ans_pv_5 ans_pv_6 ans_pv_7 ans_pv_8 trendPanel closeTrendbh V102 V301 V401 V201
+global f1 v12bh v13bh v14bh v15bh v16bh % Add calibration-related globals
+global varTrend Start_Simu closeButton alarm_text posit control_pos control_stat   ans_pv_9 ans_pv_10 ans_pv_11 ans_11
+global slider_reflux  ans_12 ans_13 ans_14 ans_15 ans_28 ans_29 ans_30 identification_opt slider_flow_dist slider_for_temp
+global slider_amn_feed slider_amn_cooling slider_amn_dist slider_amn_reflux
+global control_stat_reflux control_stat_feed control_stat_cooling control_stat_dist fid_mouse_move
+global  fid fid_click curr_time intro_file 
+global fid_alarm_timing esd_box 
+% global  flag_temp_control  flag_reflux_control
+global time_start
+global time_start_first index_for_scenario time_for_process_var alarm_var_store
+global time_track_for_experiment  time_track_count t_start_exp
+global tag_for_plot
+global number_var_alarms
+global flag_flow_distill flag_for_reflux
+global slider_var_store
+flag_flow_distill = 0;
+flag_for_reflux = 0;
+
+control_stat_reflux = 2;
+control_stat_feed  = 2;
+control_stat_cooling = 2;
+control_stat_dist=2;
+
+task_no_lo = task_no;
+fault_no_lo = fault_no;
+fault_no_list_lo = fault_no_list;
+
+
+
+
+% flag_reflux_control  = 0 ;
+% flag_temp_control = 0;
+
+% Initialize calibration_completed if not already set
+if isempty(calibration_completed)
+    calibration_completed = false;
+    calibration_step = 0; % Track which calibration step we're on
+end
+
+% Only create calibration window for the first task
+if ~calibration_completed
+    f1 = figure('Visible','on','Name','Calibration window',...
+        'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
+        'Position',[10,7,1425,880],'Resize','on','color',[127 127 127]./255);
+    f = figure('Visible','off','Name','Schematic Display',...
+        'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
+        'Position',[10,260,1425,530],'Resize','on','color',[127 127 127]./255); % place [ 0 0 0] to get previous color
+else
+    f1 = []; % No calibration window for subsequent tasks
+    f = figure('Visible','on','Name','Schematic Display',...
+        'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
+        'Position',[10,260,1425,530],'Resize','on','color',[127 127 127]./255); % place [ 0 0 0] to get previous color
+end
+
+% Set f2 visibility based on calibration status
+if ~calibration_completed
+    f2 = figure('Visible','off','Name','Alarms Display',...
+        'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
+        'Position',[10, -170, 1425, 445],'Resize','on', 'color', [127 127 127]./255);
+else
+    f2 = figure('Visible','on','Name','Alarms Display',...
+        'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
+        'Position',[10, -170, 1425, 445],'Resize','on', 'color', [127 127 127]./255);
+end
+
+function close_feedback_form(varargin)
+       if es_flag == 1 || task_complete_flag == 1   
+         close(f2);
+       end
+end
+
+
+f_ref = get(f,'Position');
+f2_ref = get(f2,'Position');
+
+% This is used to plot alarm display
+alarm_summary =axes('Parent',f2,'Units','points', 'NextPlot','replacechildren','Position',[20,45,700,375],'color',[127 127 127]./255); %axes ('Parent',f2, 'HandleVisibility','callback','NextPlot','replacechildren', 'Units','points', 'Position',[15,290,990,215]);
+table_alarm(alarm_summary); % list of alarms - bottom part
+
+
+b_image = axes('Parent',f,'HandleVisibility','callback','NextPlot','replacechildren', 'Units','points', 'Position',[4,-30,1540,605]);
+%imshow('image_with_final_pic.png','Parent',b_image);
+imshow('media\images\Presentation44.png','Parent',b_image);
+
+% for obtaining mouse coordinates for remianing screen for points which
+% do not have callbacks
+set(f,'WindowButtonDownFcn',@mytestcallback);% for mouse click on schematic display
+set(f2,'WindowButtonDownFcn',@mytestcallback2); % for mouse click on alarm summary
+% for alaready obtained call back function
+% set (f, 'WindowButtonMotionFcn', @mouseMove);
+
+fid_click = fopen('data\text-logs\Mouse_click.txt','wt+');
+fid_click = file_clk;
+fid_mouse_move =  fopen('data\text-logs\task_no.txt','wt+');
+% fid_mouse_move =  eval(sprintf('fopen(''task_no_%d.txt'',''at+'');',task_no));
+
+fid_alarm_timing = fopen('data\text-logs\alarm_timing.txt','wt+');
+click_status = 1; % For call back function
+% 2 for non call back function
+
+
+%% Assigning the static textbox %%
+% the following are for textboxes to display variable values in the schematic
+% position is [left bottom width height
+% ff contains the extent, which is width and height of the text -> used to
+% specify width and height of the textbox/uicontrol
+
+[ans_pv_1 ff] = name_uicontrol(f); set(ans_pv_1, 'Position',[225+120-50-15+16-12,481-109+105+10+2+10, ff(3)+64+20, ff(4)-2+2]); % input flow rate F101
+[ans_pv_2 ff] = name_uicontrol(f); set(ans_pv_2, 'Position',[15+179+113-172-40,371-119+82-53-10+5+10, ff(3)+48+20+20 ,ff(4)]); % cooling water flow rate F102
+[ans_pv_3 ff] = name_uicontrol(f); set(ans_pv_3, 'Position',[100+215-83,371-115+80-128-25+12+12+25-5, ff(3)+38+10 ,ff(4)-2+3]); % Inlet water tempearture T101
+[ans_pv_4 ff] = name_uicontrol(f); set(ans_pv_4, 'Position',[420+120-15+37+70-12-8-8,297-103+233-59-18+10+10+20-3, ff(3)+32+20 ,ff(4)-2+5]);  % Jacket temperature T102
+[ans_pv_5 ff] = name_uicontrol(f); set(ans_pv_5, 'Position',[610+123-23+130-4-6,280-33+30+18-74+12+7+10+20, ff(3)+44+20+14 ,ff(4)-2+2]); % Flow rate to distillation column F105
+[ans_pv_6 ff] = name_uicontrol(f); set(ans_pv_6, 'Position',[620+153+208-22-28-20-25-4,380+10-34+115+4-12+2+10+20-4, ff(3)+32+20 ,ff(4)-2+3]); % Temp of 3rd tray T106
+[ans_pv_7 ff] = name_uicontrol(f); set(ans_pv_7, 'Position',[800+163+250+19-8-13-25-25-13,270-53+125-27-16+10+15+13-3, ff(3)+32+20 ,ff(4)-2+2]); % Temp of 5th tray T105
+[ans_pv_8 ff] = name_uicontrol(f); set(ans_pv_8, 'Position',[625+120+83+224+19-50-10-3-20-25-12-4,180-90+58-87-12+2-10+10+4, ff(3)+32+20 ,ff(4)-2+5]); % Temp of 8th tray T104
+
+[ans_pv_9,ff] = name_uicontrol(f);set(ans_pv_9,'Position',[300+164-12-5-7,450-110+102+25-5+10+30-8,ff(3)+32+20,ff(4)-2+2],'visible','on'); %CSTR Temperature T103
+[ans_pv_10,ff] = name_uicontrol(f);set(ans_pv_10,'Position',[255+202+160-58-5-2-35,200-128-10-30+10+20+4,ff(3)+75+20-13,ff(4)-2+5],'visible','on'); % Ethanol Concentration C101
+
+[ans_pv_11,ff] = name_uicontrol(f); set(ans_pv_11,'Position',[425+220+25-11,425-120+93+30+18-19+45-14+10+10+25-5,ff(3)+36+20,ff(4)-2], 'visible','on'); % cstr height
+
+[ans_11 ff] = name_uicontrol(f); set(ans_11, 'Position',[100+200-36+115-97-86-10-12,471-163+167-4+10+15, ff(3)+2+20 ,ff(4)-2.7+5],'visible','on','FontSize',16,'foregroundcolor',[0 0 0]); % Feed Slider
+[ans_12 ff] = name_uicontrol(f); set(ans_12, 'Position',[23+120+90-165-17-26,268-33-35+38-30-6+10+25, ff(3)+2+20 ,ff(4)-2+5],'visible','on','FontSize',16,'foregroundcolor',[0 0 0]); % Coolant Slider
+[ans_13 ff] = name_uicontrol(f); set(ans_13, 'Position',[930+100-5+265+20+38-6-12+10+13-10,500-138+100-50-8-4+20-5, ff(3)+2+20 ,ff(4)-2+5],'visible','on','FontSize',16,'foregroundcolor',[0 0 0]); % Reflux Slider
+[ans_14,ff] = name_uicontrol(f); set(ans_14, 'Position',[545+103-18+182-80-13-10-12-35-20-8,520-33-35-110-65-108+52-4+10+20, ff(3)+2+20,ff(4)-2+5],'visible','on','FontSize',16,'foregroundcolor',[0 0 0]);% distillation cloumn flow
+
+% time_remain_text =uicontrol(f,'Style','text','String','Time Remaining','visible','on','backgroundcolor',[127 127 127]./255, 'foregroundcolor',[33 61 33]./255,'Units', 'points',... % [41 50 49]./255 change background to this
+%             'fontsize',11,'Position',[490,500-30, 200,20],'FontSize',14,'fontweight','bold');
+
+% [ans_30,ff] = name_uicontrol(f); set(ans_30,'String','360','Position',[545+25,500-50, ff(3)+10,ff(3)-10],'foregroundcolor',[0 0 0]','visible','on','FontSize',14);% distillation cloumn flow
+
+%=========================================================================
+%=================Text box for control option=============================
+
+%=======================For Feed=========================================
+[ans_15,ff] = name_uicontrol(f); set(ans_15,'Position',[50+120,485,ff(3)+4 ,ff(4)-2],'visible','off'); % Automatic for feed
+
+set(ans_15,'String','M','foregroundcolor',[.8 0 .5],'fontsize',14);
+
+%====================For Cooling========================================
+
+[ans_18,ff] = name_uicontrol(f); set(ans_18,'Position',[45+120,205,ff(3)+4 ,ff(4)-2],'visible','off'); % Automatic for feed
+set(ans_18,'String','M','foregroundcolor',[.8 0 .5],'fontsize',14);
+
+%======================For distillation column inlet=====================
+
+[ans_21,ff] = name_uicontrol(f); set(ans_21,'Position',[540+120,315,ff(3)+3 ,ff(4)-2],'visible','off'); % Automatic for feed
+set(ans_21,'String','M','foregroundcolor',[.8 0 .5],'fontsize',14);
+
+%=======================For reflux valve=================================
+[ans_24,ff] = name_uicontrol(f); set(ans_24,'Position',[874+120,486,ff(3)+4 ,ff(4)-2],'visible','off'); % Automatic for feed
+set(ans_24,'String','M','foregroundcolor',[.8 0 .5],'fontsize',14);
+
+
+%======================== For Reflux Ratio ==============================
+[ans_28,ff] = name_uicontrol(f); set(ans_28, 'Position',[800+120+15,365,ff(3)+44, ff(4)- 2],'visible','off'); % for reflux ratio
+
+%=========================== For Text Printing ===========================
+ans_29 =  uicontrol(f,'Style','text','Position',[500+120 100 320 70],'visible','off','String','Scenario Completed!!!','foregroundcolor',[33 61 33]./255,'fontsize',15);
+
+%% Historical Trend in Schematics Display
+% button for each variable
+% gray color
+buttonColor = [0.5 0.5 0.5];
+
+v1bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','F101','fontweight','bold','fontsize',10,'Units','points','Position',[305,445,45,45],'Callback',@v1Fcn,'visible','off');    %F101
+v2bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','F102','fontweight','bold','fontsize',10,'Units','points','Position',[130,225,45,45],'Callback',@v2Fcn,'visible','off');    %F102
+v3bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','T101','fontweight','bold','fontsize',10,'Units','points','Position',[248,170,45,45],'Callback',@v3Fcn,'visible','off');    %T101
+v4bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','T102','fontweight','bold','fontsize',10,'Units','points','Position',[615,335,45,45],'Callback',@v4Fcn,'visible','off');    %T102
+v5bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','F105','fontweight','bold','fontsize',10,'Units','points','Position',[868,208,45,45],'Callback',@v5Fcn,'visible','off');    %F105
+v6bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','T106','fontweight','bold','fontsize',10,'Units','points','Position',[898,435,45,45],'Callback',@v6Fcn,'visible','off');    %T106
+v7bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','T105','fontweight','bold','fontsize',10,'Units','points','Position',[1163,272,45,45],'Callback',@v7Fcn,'visible','off');  %T105
+v8bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','T104','fontweight','bold','fontsize',10,'Units','points','Position',[962,100,45,45],'Callback',@v8Fcn,'visible','off');  %T104
+v9bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','T103','fontweight','bold','fontsize',10,'Units','points','Position',[460,433,45,45],'Callback',@v9Fcn,'visible','off');  %T103
+v10bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','C101','fontweight','bold','fontsize',10,'Units','points','Position',[460,61,45,45],'Callback',@v10Fcn,'visible','off');  %C101
+v11bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'String','L101','fontweight','bold','fontsize',10,'Units','points','Position',[676,438,45,45],'Callback',@v11Fcn,'visible','off'); % L101
+
+
+%%  for buttons to calibrate - only create if calibration window exists
+if ~isempty(f1)
+    v12bh = uicontrol(f1,'Style','pushbutton','backgroundcolor',[0 1 0],'String','1','fontweight','bold','fontsize',26,'Units','points','Position',[10,735,35,35],'Callback',@v12Fcn,'visible','on'); 
+    v13bh = uicontrol(f1,'Style','pushbutton','backgroundcolor',[0 1 0],'String','2','fontweight','bold','fontsize',26,'Units','points','Position',[1363,735,35,35],'Callback',@v13Fcn,'visible','off'); 
+    v14bh = uicontrol(f1,'Style','pushbutton','backgroundcolor',[0 1 0],'String','3','fontweight','bold','fontsize',26,'Units','points','Position',[1363,10,35,35],'Callback',@v14Fcn,'visible','off'); 
+    v15bh = uicontrol(f1,'Style','pushbutton','backgroundcolor',[0 1 0],'String','4','fontweight','bold','fontsize',26,'Units','points','Position',[10,10,35,35],'Callback',@v15Fcn,'visible','off'); 
+    v16bh = uicontrol(f1,'Style','pushbutton','backgroundcolor',[0 1 0],'String','5','fontweight','bold','fontsize',26,'Units','points','Position',[670,375,35,35],'Callback',@v16Fcn,'visible','off');
+end
+
+
+%%
+trendPanel = uipanel('Parent',f2,'HandleVisibility','callback','Units','points','Position',[780 190 600 230],'BackgroundColor',[127 127 127]./255);
+%close Trend Panel button
+closeTrendbh = uicontrol('Parent',trendPanel,'Style','pushbutton','backgroundcolor',[0.7 0.7 0.7],'Units','points','Position',[0 0 1 1],...
+    'HandleVisibility','callback','String','','FontSize',1,'Callback',@closeTrendFcn);
+varTrend = axes('Parent',trendPanel,'HandleVisibility','callback','NextPlot','replacechildren','Units','points','Position',[28 15 240+50+240 110+50+30],'FontSize',8,'Color',[127 127 127]./255);
+set(trendPanel,'Visible','off');
+
+
+name_list = {'Select Diagnosis';'Leak in Reactor Inlet';'Catalyst Poisoning';'Leak in cooling water Inlet';'Leak in Distillation Column Inlet';'Leak in reflux valve';'Reboiler power failure';'None of the above'};
+
+%% For slider and slider values
+slider_feed = uicontrol(f,'Style','Slider','Min',0,'Max',1,'Value',.5,'Position',[160+75+215+70-170-78,650-33-30-15-20+20+2,18,75],'SliderStep',[0.009 0.08],'visible','on','callback',@slider_feed_control);
+
+slider_coolant = uicontrol(f,'Style','Slider','Min',0,'Max',1,'Value',.5,'Position',[55+120+82+74-218-22-12-8,342+29-172+25-2,18,75],'SliderStep',[0.009 0.08],'visible','on','callback',@slider_coolant_control);
+
+slider_reflux = uicontrol(f,'Style','Slider','Min',0,'Max',1,'Value',.5,'Position',[1265+120+20+284+60+30-8,670-33-173+40-9+15,18,75],'SliderStep',[0.009 0.08],'visible','on','callback',@slider_reflux_control);
+
+slider_flow_dist = uicontrol(f,'Style','Slider','Min',0,'Max',1,'Value',.5,'Position',[750+85+200+65-131-35-30-20,520-33-45-280+40+17-3+12+15,18,75],'SliderStep',[0.009 0.08],'visible','on','callback',@slider_flow_dist_control);
+% 
+% slider_amn_feed = uicontrol(f,'Style','togglebutton','String','M','fontsize',12,'fontweight','bold','Min',0,'Max',1,'Value',1,'Position',[100+80,650-15,30,30],'Slider',[1 1],'backgroundcolor',[1 1 0],'visible','on','callback',@slider_amn_feed_control);
+% 
+% slider_amn_cooling = uicontrol(f,'Style','togglebutton','String','M','fontsize',12,'fontweight','bold','Min',0,'Max',1,'Value',1,'Position',[95+120-120,275,30,30],'Slider',[1 1],'backgroundcolor',[1 1 0],'visible','on','callback',@slider_amn_cooling_control);
+% 
+% slider_amn_dist = uicontrol(f,'Style','togglebutton','String','M','fontsize',12,'fontweight','bold','Min',0,'Max',1,'Value',1,'Position',[750+120,390,30,30],'Slider',[1 1],'backgroundcolor',[1 1 0],'visible','on','callback',@slider_amn_dist_control);
+% 
+% slider_amn_reflux = uicontrol(f,'Style','togglebutton','String','M','fontsize',12,'fontweight','bold','Min',0,'Max',1,'Value',1,'Position',[1195+150,645,30,30],'Slider',[1 1],'backgroundcolor',[1 1 0],'visible','on','callback',@slider_amn_reflux_control);
+
+slider_for_temp  = uicontrol(f,'Style','Slider','Min',0,'Max',1,'Value',.2,'Position',[235+120,450-33-10,10,75],'SliderStep',[.009 .08],'visible','off','callback',@slider_temp_control,'Enable','inactive');
+
+set(slider_reflux,'Enable','off');
+set(slider_feed,'Enable','off');
+set(slider_coolant,'Enable','off');
+set(slider_flow_dist,'Enable','off');
+
+
+esd_box = uicontrol(f,'Style','pushbutton','String','Emergency Shutdown','backgroundcolor',[1 0 0],'foregroundcolor',[0 0 0],'fontweight','bold','fontsize',12,'Units','points','Position',[5 485 140 25],...
+    'Callback',@esd_call,'Visible','off');
+
+%% Set up Control Boxes
+
+Start_Simu= uicontrol(f,'Style','pushbutton','String','Start','backgroundcolor',[0 1 0],'fontweight','bold', 'fontsize',12,...
+    'Units','points','Position',[500+200-27+75 50-14+10+235+60 140 25], 'foregroundcolor',[0 0 0],'Callback', @myStartFcn1);
+closeButton = uicontrol(f,'Style','pushbutton','String','Submit & Close','backgroundcolor',[0.7 0.7 0.7],'fontweight','bold','fontsize',10,...
+    'Units','points','Position',[1150+120 130-13+150 100 20],'Callback', @myCloseFcn, 'Visible','off');
+[text_for_start,ff] = name_uicontrol(f);
+set(text_for_start,'String','Press Start button to run plant','foregroundcolor',[0 0 0],'Units','points','position',...
+    [450+200-27+75 7+10+235+60 250 30],'visible','on','fontweight','bold');
+
+%% For showing current time on alarm summary
+
+time_name = name_uicontrol(f);set(time_name,'Position',[1325,58,ff(3)+6,ff(4)-2],'visible','on','String','Time','fontweight','bold','backgroundcolor',[127 127 127]./255,'foregroundcolor',[0 0 0]);
+curr_time = name_uicontrol_summary(f);  set(curr_time,'Position',[1250,40,ff(3)+150,ff(4)],'visible','on','String',datestr(now),'backgroundcolor',[127 127 127]./255,'foregroundcolor',[0 0 0]);
+
+%% Alarm Summary %%
+% List of alarms
+posit{1} = [32-7 375-5-5 160 15]; posit{2} = [250-48+25 375-5-5 80 15];posit{3} = [505-120 375-5-5 80 15];posit{4} = [731-200 375-5-5 170 15];
+% posit{5} = [761 375 215 15];
+% cvv = [0.95 0.95 0.95];alarm_text=cell(14,5);
+cvv = [127 127 127]./255;alarm_text=cell(14,5);
+
+
+uicontrol(f2,'Style','text','String', 'Alarm Summary','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
+    'fontsize',13,'Position',[30 400 600 15],'fontweight','bold');
+uicontrol(f2,'Style','text','String', 'Date & Time','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
+    'fontsize',13,'Position',[32 375 100 15],'fontweight','bold');
+% uicontrol(f2,'Style','text','String', 'Location','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
+%     'fontsize',11,'Position',[215 377 175 15],'fontweight','bold');
+uicontrol(f2,'Style','text','String', 'Source','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
+    'fontsize',13,'Position',[290-20-45 375 80 15],'fontweight','bold');
+uicontrol(f2,'Style','text','String', 'Condition','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
+    'fontsize',13,'Position',[540-40-110 375 80 15],'fontweight','bold');
+uicontrol(f2,'Style','text','String', 'Description','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
+    'fontsize',13,'Position',[770-50-130 375 80 15],'fontweight','bold');
+
+% alarm_text is placeholder for List of alarms table
+for ii = 1:4
+    for j = 1:14
+        alarm_text{j,ii} =uicontrol(f2,'Style','text','String','','backgroundcolor',cvv, 'foregroundcolor',[0 0 0],...
+            'Units','points','fontsize',13,'Position',[posit{ii}(1) posit{ii}(2)-(j*18) posit{ii}(3) posit{ii}(4)]);
+    end
+end
+
+
+%% Defining valve values
+
+V102=valve;
+V301 = valve;
+V401 = valve;
+V201 = valve;
+
+% Defining Initial values for V102 valve
+V102.setpoint = .7;
+V102.flowin = 1.4;
+V102.flowout = .7;
+V102.flowfinal = .7*10;
+V102.valvepos = .5;
+
+% Defining initial values for V301 valve
+V301.setpoint = 6.5e3/50;
+V301.flowin = 2*(6.5e3/50);
+V301.flowout = 6.5e3/50;
+V301.flowfinal = 6.5e3/50;
+V301.valvepos = .5;
+
+
+% Controlling of Reflux Ratio
+
+V401.setpoint = .9;
+V401.flowin = 1.9;
+V401.flowout = 1;
+V401.flowfinal = 1;
+V401.valvepos =  0.526315789473684;
+
+% Controlling of flow from CSTR to distillation column
+
+V201. setpoint = .6481;
+V201.flowin = .6481;
+V201.flowout = .6481;
+V201.flowfinal = .6481;
+V201.valvepos = 1;
+
+
+
+
+%% Functions
+    function myStartFcn1(varargin)
+        
+        es_flag = 0;
+        task_complete_flag = 0;  
+        time_start = datestr(clock); % clock is a function and so as datestr
+       
+        time_start_mili = datestr(now,'dd-mm-yyyy HH:MM:SS FFF');
+        if task_no==1
+            time_track_count = 1;
+            time_track_for_experiment(time_track_count) = 0;
+        else
+             time_track_count = time_track_count + 1;
+            time_track_for_experiment(time_track_count) = toc(t_start_exp);
+        end
+        %         tic
+        set (f, 'WindowButtonMotionFcn', @mouseMove);
+        set(f2,'WindowButtonMotionFcn',@mouseMove2);
+        set(text_for_start,'visible','off');
+        if task_no==1
+            tic
+            
+%             t_start_exp = tic;
+%             tetio_startTracking;
+            time_start_first = time_start;
+            time_mode= time_start;
+            time_mode ([12 15 18]) = '_';
+            
+         
+            
+%             eval(sprintf(' TrackStart(1,''eye_track_data_%s'');',time_mode));
+            
+        end
+        intro_file = fopen('data\text-logs\Introduction.txt','at+');
+        fprintf(intro_file,'Start Time = %s \n',time_start_mili);
+        set(slider_reflux,'Enable','on');
+        set(slider_feed,'Enable','on');
+        set(slider_coolant,'Enable','on');
+        set(slider_flow_dist,'Enable','on');   
+        set(Start_Simu,'Visible','off');
+        %====================================
+        % Hiding the close and submit option
+        set(closeButton,'visible','off');
+        %====================================
+        set(esd_box,'visible','on');
+        
+        %% Hiding the pop up menu
+        
+        set(identification_opt,'visible','on');
+        po = get(Start_Simu,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        te = toc(t_start_exp);
+        fid_click = fopen('data\text-logs\Mouse_click.txt','at+');
+        fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+            floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Start',0000);
+        main_file_kaushik_parameters(task_no_lo,fault_no_list_lo,fault_no_lo)
+      
+    end
+
+    function myCloseFcn(varargin)
+        v = get(identification_opt,'Value');
+        pr = name_list{v};
+        fid = fopen('Diagnosis1.txt','at+');
+        fprintf(fid,'%s \n',pr);
+        fprintf(fid,'STOP TIME = %s \n',datestr(clock));
+        
+        po = get(closeButton,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,'%.2f    %.2f    %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'Close_and_Submit');
+        if v == 1
+            fprintf(fid,'No Diagnosis is Submitted');
+        else  if fault_no_lo == v-1
+                fprintf(fid,'Diagnosis submitted is correct');
+            else
+                fprintf(fid,'Diagnosis submitted is false');
+            end
+        end
+        close(f)
+        close (f2)
+        fclose(fid);
+        
+        fclose(fid_alarm_timing);
+        fclose(fid_click);
+        
+        clc;
+%         feedback_form_gui
+    end
+
+
+    function esd_call(varargin)
+        es_flag = 1;
+        task_complete_flag = 1;
+        time_track_count = time_track_count+1;
+        time_track_for_experiment(time_track_count) = toc(t_start_exp);
+        intro_file = fopen('data\text-logs\Introduction.txt','at+');
+        fprintf(intro_file,'Stop Time = %s \n',datestr(clock,'dd-mm-yyyy HH:MM:SS FFF'));
+        fclose(intro_file);
+        clc;
+         
+        po = get(esd_box,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        te = toc(t_start_exp);
+        
+        fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Emergency_Shutdown',0000);
+        
+%------------------writing ti mouse click---------------------------------
+        [a_c b_c c_c d_c e_c f_c g_c] = textread('data\text-logs\Mouse_click.txt','%s %s %s %s %s %s %s','whitespace',' ','bufsize',10000);
+        ty = time_start_first;
+        ty([12 15 18]) = '_';
+        if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c) && ~isempty(g_c)
+            eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_click_case4_%s.xlsx'',[a_c b_c c_c d_c e_c f_c g_c],%d);',ty,task_no));
+        end
+%  -------------------------------alarm data-----------------------------        
+        [a_a b_a c_a ] = textread('data\text-logs\alarm_timing.txt','%s %s %s','whitespace',' ','bufsize',10000);
+        ty = time_start_first;
+        ty([12 15 18]) = '_';
+        if ~isempty(a_a) && ~isempty(b_a) && ~isempty(c_a) 
+            eval(sprintf('xlswrite(''data\\excel-outputs\\Alarm_timing_case4_%s.xlsx'',[a_a b_a c_a],%d);',ty,task_no));
+            
+        end
+
+ %%--------------writing to process data-----------------------
+        process_var_store = [time_for_process_var(1:index_for_scenario,:) alarm_var_store(1:number_var_alarms,1:index_for_scenario)' slider_var_store(1:4,1:index_for_scenario)'];
+        eval(sprintf('xlswrite(''data\\excel-outputs\\Process_data_case4_%s.xlsx'',process_var_store,%d);',ty,task_no));
+        
+        [a_c b_c c_c d_c e_c f_c] = textread('data\text-logs\task_no.txt','%s %s %s %s %s %s','whitespace',' ','bufsize',10000);
+        if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c)
+            eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_move_case4_%s.xlsx'',[a_c b_c c_c d_c e_c f_c],%d);',ty,task_no));
+        end
+
+        pause(0.25);
+        clc
+        time_track_count = time_track_count+1;  % for start of feeedback form 
+        time_track_for_experiment(time_track_count) = toc(t_start_exp);
+
+    end
+
+    function slider_feed_control(varargin)
+        
+        po = get(slider_feed,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+%         fprintf(fid_click,'%.2f    %.2f   %d   %s     %s \n',po_mid(1),po_mid(2),1,datestr(now),'Slider_feed_control');
+te = toc(t_start_exp);
+        
+      
+        V102.valvepos = get(slider_feed,'Value');
+           fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Slider_feed_control',V102.valvepos);
+    end
+
+
+    function slider_coolant_control(varargin)
+        
+        po = get(slider_coolant,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        te = toc(t_start_exp);
+        
+        
+       V301.valvepos  = get(slider_coolant,'Value');
+         fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Slider_coolant_control',V301.valvepos );
+    end
+
+    function slider_reflux_control(varargin)
+%         flag_reflux_control = 1;
+        po = get(slider_reflux,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+      te = toc(t_start_exp);
+        flag_for_reflux = 1;
+       
+        V401.valvepos = get(slider_reflux,'Value');
+         fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Slider_reflux_control',V401.valvepos);
+    end
+
+    function slider_flow_dist_control(varargin)
+        
+        po = get(slider_flow_dist,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+       te = toc(t_start_exp);
+        flag_flow_distill = 1;
+        
+        V201.valvepos =  get(slider_flow_dist,'Value');
+      fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Slider_flow_disitillation_feed_control', V201.valvepos);
+    end
+
+
+    function slider_temp_control(varargin)
+%         flag_temp_control = 1;
+        po = get( slider_for_temp,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+         temp_slider_val = get( slider_for_temp,'Value');
+        fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Slider_for_temp_control',temp_slider_val);
+       
+        set(slider_for_temp,'Enable','on');
+    end
+
+    function slider_amn_feed_control(varargin)
+        
+        a = get(slider_amn_feed,'Value');
+        po = get(slider_amn_feed,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        te = toc(t_start_exp);
+        
+         fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'auto_manual_feed_flow_control',0000);
+%         fprintf(fid_click,'%.2f  %.2f    %d   %s      %s\n',po_mid(1),po_mid(2),1,datestr(now),'auto_manual_feed_flow_control');
+        if a==0
+            set(slider_feed,'Enable','off');
+            control_stat_feed = 0; % Automatic control
+            set(slider_amn_feed,'String','A','backgroundcolor',[1 0 1]);
+            
+        else
+            set(slider_feed,'Value',V102.valvepos);
+            set(slider_feed,'Enable','on');
+            set(slider_amn_feed,'String','M');
+            set(slider_amn_feed,'backgroundcolor',[1 1 0]);
+            control_stat_feed = 2; 
+        end
+       
+        
+    end
+
+
+
+    function slider_amn_cooling_control(varargin)
+        
+        a = get(slider_amn_cooling,'Value');
+        
+        po = get(slider_amn_cooling,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        te = toc(t_start_exp);
+      fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'auto_manual_cooling_water_flow_control',0000);
+%         fprintf(fid_click,' %.2f   %.2f    %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'auto_manual_cooling_water_flow_control');
+        if a==0
+            set(slider_coolant,'Enable','off');
+            set(slider_amn_cooling,'String','A');
+            set(slider_amn_cooling,'backgroundcolor',[1 0 1]);
+            control_stat_cooling = 0; % Automatic control
+        else
+            set(slider_coolant,'Value',V301.valvepos);
+            set(slider_coolant,'Enable','on');
+            set(slider_amn_cooling,'String','M');
+            set(slider_amn_cooling,'backgroundcolor',[1 1 0]);
+            control_stat_cooling = 2; % Manual
+        end
+        
+    end
+
+
+    function slider_amn_dist_control(varargin)
+        
+        a = get(slider_amn_dist,'Value');
+        
+        
+        po = get(slider_amn_dist,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+%         fprintf(fid_click,'%.2f   %.2f    %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'auto_manual_distillation_flow_control');
+        te = toc(t_start_exp);
+        
+       fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f \n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'auto_manual_distillation_flow_control',0000);
+        if a==0
+            set(slider_flow_dist,'Enable','off');
+            set(slider_amn_dist,'String','A');
+            set(slider_amn_dist,'backgroundcolor',[1 0 1]);
+            control_stat_dist = 0; % Automatic control
+        else
+            set(slider_flow_dist,'Value',V201.valvepos);
+            set(slider_flow_dist,'Enable','on');
+            set(slider_amn_dist,'String','M');
+            set(slider_amn_dist,'backgroundcolor',[1 1 0]);
+            
+            control_stat_dist = 2; % Manual
+        end
+        
+    end
+
+    function slider_amn_reflux_control(varargin)
+        
+        a = get(slider_amn_reflux,'Value');
+        
+        po = get(slider_amn_reflux,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+%         fprintf(fid_click,' %.2f   %.2f   %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'auto_manual_reflux_control');
+te = toc(t_start_exp);
+        
+       fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'auto_manual_reflux_control',0000);
+        if a==0
+            set(slider_reflux,'Enable','off');
+            set(slider_amn_reflux,'String','A');
+            set(slider_amn_reflux,'backgroundcolor',[1 0 1]);
+            control_stat_reflux = 0; % Automatic control
+        else
+            set(slider_reflux,'Value',V401.valvepos);
+            set(slider_reflux,'Enable','on');
+            set(slider_amn_reflux,'String','M');
+            set(slider_amn_reflux,'backgroundcolor',[1 1 0]);
+            control_stat_reflux = 2; % Manual
+        end
+    end
+
+    function v1Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        
+        po = get(v1bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+%         fprintf(fid_click,'%.2f   %.2f    %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'V102');
+
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v1bh,'UserData',1);
+     
+    end
+
+    function v2Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        po = get(v2bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f   %.2f    %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'F101');
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+      
+        set(v2bh,'UserData',1);
+    end
+
+    function v3Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        po = get(v3bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f   %.2f    %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'T101');
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v3bh,'UserData',1);
+    end
+
+    function v4Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        po = get(v4bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f   %.2f    %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'T103');
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v4bh,'UserData',1);
+    end
+
+    function v5Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        po = get(v5bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f    %.2f  %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'V201');
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            % end
+        end
+        % set v1bh to 1 == activate
+        set(v5bh,'UserData',1);
+    end
+
+    function v6Fcn(varargin)
+        refreshdata(varTrend);
+        refreshdata(trendPanel);
+        po = get(v6bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f    %.2f    %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'T106');
+        
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            % if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v6bh,'UserData',1);
+    end
+
+    function v7Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        
+        po = get(v7bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f    %.2f   %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'T105');
+        
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v7bh,'UserData',1);
+    end
+
+    function v8Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        
+        po = get(v8bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f   %.2f   %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'T104');
+        % first set all v?bh UserData to 0 == deactivate
+        
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v8bh,'UserData',1);
+    end
+
+
+    function v9Fcn(varargin)
+        
+        po = get(v9bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f   %.2f    %d   %s     %s \n',po_mid(1),po_mid(2),1,datestr(now),'T107');
+        
+        % first set all v?bh UserData to 0 == deactivate
+        
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v9bh,'UserData',1);
+    end
+
+
+    function v10Fcn(varargin)
+        
+        po = get(v10bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f   %.2f    %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'C101');
+        
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v10bh,'UserData',1);
+    end
+
+
+    function v11Fcn(varargin)
+        refreshdata(trendPanel);
+        refreshdata(varTrend);
+        po = get(v11bh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        fprintf(fid_click,' %.2f  %.2f   %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'L101');
+        % first set all v?bh UserData to 0 == deactivate
+        for iii = 1:1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        % set v1bh to 1 == activate
+        set(v11bh,'UserData',1);
+    end
+
+function v12Fcn(hObject,eventdata,handles)   %for closing calibration button
+        calibration_step = 1; % User clicked button 1
+        set(v12bh,'visible','off')
+        set(v13bh,'visible','on')
+    end
+function v13Fcn(hObject,eventdata,handles)
+        calibration_step = 2; % User clicked button 2
+        set(v13bh,'visible','off')
+        set(v14bh,'visible','on')
+end
+function v14Fcn(hObject,eventdata,handles)
+        calibration_step = 3; % User clicked button 3
+        set(v14bh,'visible','off')
+        set(v15bh,'visible','on')
+    end
+function v15Fcn(hObject,eventdata,handles)
+        calibration_step = 4; % User clicked button 4
+        set(v15bh,'visible','off')
+         set(v16bh,'visible','on')
+end
+       
+function v16Fcn(hObject,eventdata,handles)
+        calibration_step = 5; % User clicked button 5
+        % Only mark as completed if user went through the full sequence
+        if calibration_step == 5
+            calibration_completed = true; % Mark calibration as completed after full sequence
+        end
+        set(f1,'visible','off')
+        set(f,'visible','on')
+        set(f2,'visible','on')
+    end
+    function closeTrendFcn(varargin)
+       tag_for_plot = 0;
+        set(closeTrendbh,'visible','off');
+        set(trendPanel,'Visible','off');
+        % set all v?bh UserData to 0 == deactivate
+        po = get(closeTrendbh,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+        te = toc(t_start_exp);
+        
+       fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'close_trend_plot',0000);
+%         fprintf(fid_click,'%.2f    %.2f    %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'Close_trend_plot');
+        for iii = 1:number_var_alarms
+            %if iii ~= 10
+            eval(sprintf('set(v%dbh,''UserData'',0);',iii));
+            %end
+        end
+        
+    end
+
+
+    function mouse_click_val(varargin)
+        
+        po = get(identification_opt,'Position');
+        po_mid(1) = po(1) + (po(3)/2);
+        po_mid(2) = po(2) + (po(4)/2);
+%         fprintf(fid_click,' %.2f    %.2f   %d   %s    %s \n',po_mid(1),po_mid(2),2,datestr(now),'Arbitrary');
+        te = toc(t_start_exp);
+        
+      fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s \n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Arbitrary');
+        
+    end
+
+
+    function mytestcallback(hObject,~)
+        
+        pos=get(hObject,'CurrentPoint');
+        %         fprintf(fid_click,' %.2f    %.2f   %d   %s    %s \n',(pos(1)),(pos(2)),2,datestr(now),'Arbitrary');
+        pos(1);
+        pos(2);
+        po_trend = get(trendPanel,'Position');
+              
+        if po_trend(1)<=pos(1) && pos(1)<=po_trend(3) && po_trend(2)<=pos(2) && pos(2)<=po_trend(4)
+            %flag_text = 1;
+        else
+            flag_text = 0;
+        end
+        
+        
+        %% Checking for clicks
+        
+         % for F101
+        if pos(1)<= 305+45 && pos(1)>=305 && pos(2)<=445+45 && pos(2)>=445
+            %             v1Fcn;
+%             fprintf(fid_click,'%.2f   %.2f    %d   %s    %s \n',264,451,1,datestr(now),'F101');
+            te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),264,451,1,'F101',0000);
+
+            tag_for_plot = 1;
+            %flag_text = 1;
+        else
+            
+            % for F102
+            if pos(1)<= 130+45 && pos(1)>=130 && pos(2)<=225+45 && pos(2)>=225
+                %                 v2Fcn;
+               te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),163,315,1,'F102',0000);
+
+                tag_for_plot = 2 ;
+                %flag_text = 1;
+            else
+                
+                % for T101
+                if pos(1)<= 248+45 && pos(1)>=248 && pos(2)<=170+45 && pos(2)>=170
+                 te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),231,315,1,'T101',0000);
+
+                    tag_for_plot = 3 ;
+                    %                     v3Fcn;
+                    %flag_text = 1;
+                else
+                    
+                    % for T102
+                    if pos(1)<= 615+45 && pos(1)>=615 && pos(2)<=335+45 && pos(2)>=335
+                        te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),508,277,1,'T102',0000);
+
+                        tag_for_plot = 4 ;
+                        %                         v4Fcn;
+                        %flag_text = 1;
+                    else
+                        % for F105
+                        if pos(1)<= 868+45 && pos(1)>=868 && pos(2)<=208+45 && pos(2)>=208
+                          te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),723,249,1,'F105',0000);
+
+                            tag_for_plot = 5 ;
+                            %                             v5Fcn;
+                            %flag_text = 1;
+                        else
+                            
+                            % for T106
+                            if pos(1)<= 898+45 && pos(1)>=898 && pos(2)<=435+45 && pos(2)>=435
+                              te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),762,328,1,'T106',0000);
+
+                                tag_for_plot = 6 ;
+                                %                                 v6Fcn;
+                                %flag_text = 1;
+                            else
+                                % for T105
+                                if pos(1)<= 1163+45 && pos(1)>=1163 && pos(2)<=272+45 && pos(2)>=272
+                                 te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f \n',floor(te),(te-floor(te)),944,276,1,'T105',0000);
+
+                                    tag_for_plot = 7 ;
+                                    %                                     v7Fcn;
+                                    %flag_text = 1;
+                                else
+                                    % for T104
+                                    if pos(1)<= 962+45 && pos(1)>=962 && pos(2)<=100+45 && pos(2)>=100
+                                        
+                                       te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),770,178,1,'T104',0000);
+
+                                        tag_for_plot = 8 ;
+                                        %                                         v8Fcn;
+                                        %flag_text = 1;
+                                    else
+                                        % for T103
+                                        if pos(1)<= 460+45 && pos(1)>=460 && pos(2)<=433+45 && pos(2)>=433
+                                           te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),420,396,1,'T103',0000);
+
+                                            tag_for_plot = 9 ;
+                                            %                                             v9Fcn;
+                                            %flag_text = 1;
+                                        else
+                                            % for C101
+                                            if pos(1)<= 460+45 && pos(1)>=460 && pos(2)<=61+45 && pos(2)>=61
+                                            te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),379,202,1,'C101',0000);
+
+                                                tag_for_plot = 10 ;
+                                                %                                                 v10Fcn;
+                                                %flag_text = 1;
+                                            else
+                                                % for L101
+                                                if pos(1)<= 676+45 && pos(1)>=676 && pos(2)<=438+45 && pos(2)>=438
+                                                 te = toc(t_start_exp);
+     fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f \n',floor(te),(te-floor(te)),517,373,1,'L101',0000);
+
+                                                    tag_for_plot = 11 ;
+                                                    %                                                     v11Fcn;
+                                                    %flag_text = 1;
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        
+        
+        
+    end
+
+
+    function mytestcallback2(hObject,~)
+        
+        pos=get(hObject,'CurrentPoint');
+         te = toc(t_start_exp);
+                fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f \n',floor(te),(te-floor(te)),pos(1),pos(2),2,'Alarm_summary',0000);
+
+        pos(1);
+        pos(2);
+        
+        flag_text = 0;
+        
+    end
+
+
+
+    function mouseMove (object, eventdata)
+        
+        C = get (object, 'CurrentPoint');
+%         time_stamp_mouse = datestr(now,'dd-mm-yyyy HH:MM:SS FFF');
+%         a1_t = str2num(time_stamp_mouse(18:19));
+%         b1_t = str2num(time_stamp_mouse(21:23));
+
+%     te = toc(t_start_exp);
+%     a1_t = floor(te);
+%     b1_t = te-floor(te);
+         te = toc(t_start_exp);
+%       fid_mouse_move =  eval(sprintf('fopen(''task_no_%d.txt'',''at+'');',task_no));
+       
+         fprintf(fid_mouse_move,'%d     %.6f  %s  %s   %d   \n',floor(te),(te-floor(te)),num2str(C(1,1)),num2str(C(1,2)),1);
+
+%         fprintf(fid_mouse_move,'\n %d  %f  %d  %s   %s',a1_t,b1_t,1,num2str(C(1,1)),num2str(C(1,2)));
+%         toc(t_start_exp)
+        % 1 stands for schematic display
+        % second column is for X coordinate
+        % third column is for Y coordinate
+        % title(gca, ['(X,Y) = (', num2str(C(1,1)), ', ',num2str(C(1,2)), ')']);
+        
+    end
+
+    function mouseMove2 (object, eventdata)
+        
+        C = get (object, 'CurrentPoint');
+%         time_stamp_mouse2 = datestr(now,'dd-mm-yyyy HH:MM:SS FFF');
+%         a2_t = str2num(time_stamp_mouse2(18:19));
+%         b2_t = str2num(time_stamp_mouse2(21:23));
+%         
+%      te = toc(t_start_exp);
+%     a2_t = floor(te);
+%     b2_t = te-floor(te);
+%         fprintf(fid_mouse_move,'\n %d  %f  %d %s   %s',a2_t,b2_t,2,num2str(C(1,1)),num2str(C(1,2)));
+        % 2 stands for alarms display
+        
+        
+        te = toc(t_start_exp);
+%          fid_mouse_move =  eval(sprintf('fopen(''task_no_%d.txt'',''at+'');',task_no));
+         fprintf(fid_mouse_move,'%d     %.6f  %s  %s   %d   \n',floor(te),(te-floor(te)),num2str(C(1,1)),num2str(C(1,2)),2);
+    end
+
+
+
+end
+
+
+
+
+
+
