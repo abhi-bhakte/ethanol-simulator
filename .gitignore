@@ -1,0 +1,45 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+
+# MATLAB
+*.asv
+*~
+slprj/
+_rtw/
+*.mex*
+*.mexw64
+*.mexa64
+*.mexmaci64
+
+# Data and generated outputs
+data/excel-outputs/
+data/text-logs/
+data-collection/eye_track_data_*/
+
+# Logs, temporary files
+*.log
+tmp/
+temp/
+
+# Optional: ignore large MATLAB .mat files (uncomment if desired)
+# data/matlab-data/*.mat
+
+# Node / build artifacts (if any)
+node_modules/
+dist/
