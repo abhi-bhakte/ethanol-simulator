@@ -21,25 +21,25 @@ fclose(fid_click); % Close it initially, will reopen when needed
 
 f_mess = figure('Visible','off','Name','Operating details and Goal',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
-    'Position',[330 170,750,515],'Resize','off','color',.9.*[ 1 1 1]);  %400,250,550,515   [330 170
+    'Position',[380 200,350,400],'Resize','off','color',.9.*[ 1 1 1]);  %400,250,550,515   [330 170
 
 f_task = figure('Visible','on','Name','Task Introduction',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
-    'Position',[330 170,730,515],'Resize','off','color',.9.*[ 1 1 1]); %[330 170 
+    'Position',[380 200,350,400],'Resize','off','color',.9.*[ 1 1 1]); %[330 170 
 
 f_finish  = figure('Visible','off','Name','End of demo tasks and start first scenario',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
-    'Position',[330,170,730,515],'Resize','off','color',.9.*[ 1 1 1]);
+    'Position',[380,200,350,400],'Resize','off','color',.9.*[ 1 1 1]);
 
-task_name = { 'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
-          'Maintain the plant in normal operating condition ( all the variables within the range )'
+task_name = { 'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
+          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
         };
 % task_name = { 'Adjust the coolant valve to maintain the coolant flow rate'
 %           'Maintain the plant in normal operating condition ( all the variables within the range )'
@@ -54,24 +54,62 @@ task_name = { 'Maintain the plant in normal operating condition ( all the variab
 
 finish_task = uicontrol(f_finish,'Style','pushbutton','String','Start Experiment','Units','points','fontsize',12,'Position',[225 250,125,30],'visible','on','Callback',@finish_task_call);
 
-Start_string = sprintf(' You are playing the role of an operator for ethanol plant. Your supervisor has given you six tasks to finish. The time duration to finish each task is 2 minutes after the occurrence of an alarm. No hint will be provided.                                                                \nEvent that require your attention:                                                                                                1. Abnormality happening in the plant is indicated by the beep sound and color change of corresponding variable''s value.                                                                                                                                ');
+% Title for the panel
+title_text = uicontrol(f_mess,'Style','text','HorizontalAlignment','center','Units','Points','Position',[10,360,330,25],'String','ETHANOL PLANT CONTROL','backgroundcolor',.9.*[ 1 1 1],'foregroundcolor',[0.1 0.1 0.5],'fontsize',14,'fontweight','bold');
 
-mess_fow = uicontrol(f_mess,'Style','text','HorizontalAlignment','left','Units','Points','Position',[50,200,600,220],'String',Start_string,'backgroundcolor',.9.*[ 1 1 1],'foregroundcolor',[0 0 0],'fontsize',14,'fontweight','bold');
+% Add operator image at the top of the popup (circular crop)
+ax = axes('Parent',f_mess,'Units','points','Position',[125 240 110 110]);
+[scriptDir,~,~] = fileparts(mfilename('fullpath'));
+imgPath = fullfile(scriptDir, '..', 'media', 'images', 'operator.jpg');
+img = imread(imgPath);
 
-start_make = uicontrol(f_mess,'Style','pushbutton','String','Next','Units','points','fontsize',12,'Position',[350 125,75,30],'visible','on','Callback',@start_make_call);
+% Resize image to square
+imgSize = min(size(img,1), size(img,2));
+centerX = round(size(img,2)/2);
+centerY = round(size(img,1)/2);
+halfSize = round(imgSize/2);
+imgSquare = img(max(1,centerY-halfSize):min(size(img,1),centerY+halfSize), ...
+                max(1,centerX-halfSize):min(size(img,2),centerX+halfSize), :);
+
+% Create circular mask
+[rows, cols, ~] = size(imgSquare);
+[X, Y] = meshgrid(1:cols, 1:rows);
+centerX = cols / 2;
+centerY = rows / 2;
+radius = min(cols, rows) / 2;
+circleMask = ((X - centerX).^2 + (Y - centerY).^2) <= radius^2;
+
+% Apply mask - set outside circle to background color
+imgCircular = imgSquare;
+for i = 1:size(imgSquare, 3)
+    channel = imgSquare(:,:,i);
+    channel(~circleMask) = 230; % Match background color
+    imgCircular(:,:,i) = channel;
+end
+
+imshow(imgCircular, 'Parent', ax);
+axis(ax, 'off');
+axis(ax, 'equal');
+
+% Rewritten instructions - clear, direct, operator-friendly
+Start_string = sprintf('YOUR TASK:\n• Keep the ethanol plant operating normally\n• All variables must stay WITHIN RANGE\n\nWHEN AN ALARM OCCURS:\n• You will hear a BEEP sound\n• A variable will CHANGE COLOR (red)\n• You have 2 MINUTES to restore normal operation\n\nIMPORTANT: No hints provided. Work independently.');
+
+mess_fow = uicontrol(f_mess,'Style','text','HorizontalAlignment','left','Units','Points','Position',[15,90,320,130],'String',Start_string,'backgroundcolor',.9.*[ 1 1 1],'foregroundcolor',[0 0 0],'fontsize',10,'fontweight','bold');
+
+start_make = uicontrol(f_mess,'Style','pushbutton','String','Next','Units','points','fontsize',12,'Position',[137.5 40,75,30],'visible','on','Callback',@start_make_call);
 
 % task_message = uicontrol
 
-task_mess = uicontrol(f_task,'Style','text','Units','Points','Position',[50,250,500,60],'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',14,'fontweight','bold');
+task_mess = uicontrol(f_task,'Style','text','Units','Points','Position',[20,200,310,120],'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',13,'fontweight','bold');
 
-% task_go = uicontrol(f_task,'Style','pushbutton','String','Start','Units','points','fontsize',12,'Position',[300 150,75,30],'visible','on','Callback',@task_go_call);
+% task_go = uicontrol(f_task,'Style','pushbutton','String','Start','Units','points','fontsize',12,'Position',[300 140,75,30],'visible','on','Callback',@task_go_call);
 
 
-finish_button = uicontrol(f_task,'Style','pushbutton','String','Finish','Units','points','fontsize',12,'Position',[350 125,75,30],'visible','off','Callback',@finish_button_callback);
+finish_button = uicontrol(f_task,'Style','pushbutton','String','Finish','Units','points','fontsize',12,'Position',[137.5 80,75,30],'visible','off','Callback',@finish_button_callback);
  
-next_task = uicontrol(f_task,'Style','pushbutton','String','Next','Units','points','fontsize',12,'Position',[350 125,75,30],'visible','off','Callback',@start_next_task_call);
+next_task = uicontrol(f_task,'Style','pushbutton','String','Next','Units','points','fontsize',12,'Position',[137.5 80,75,30],'visible','off','Callback',@start_next_task_call);
 
-start_next_task =  uicontrol(f_task,'Style','pushbutton','String','Start','Units','points','fontsize',12,'Position',[350 125,75,30],'visible','on','Callback',@start_next_button_callback);
+start_next_task =  uicontrol(f_task,'Style','pushbutton','String','Start','Units','points','fontsize',12,'Position',[137.5 80,75,30],'visible','on','Callback',@start_next_button_callback);
   if task_no < no_of_tasks  
         fault_no = fault_no_list(task_no);
   end
@@ -110,47 +148,13 @@ start_next_task =  uicontrol(f_task,'Style','pushbutton','String','Start','Units
          if task_no == 1
               close(f_mess);
                t_start_exp = tic;
-%             tetio_startTracking;
 
               te = toc(t_start_exp);
-%             intro_file = fopen('Introduction.txt','at+');
-% fid_click = file_clk;
               fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
               fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
               fclose(fid_temp);
-              set(f_task,'visible','on')
-               
+              gui_changed_color(task_no,fault_no_list,fault_no);
          end
-      
-        set(next_task,'visible','off');
-        set(start_next_task,'visible','on');
-        
-        if task_no ~= 1
-        te = toc(t_start_exp);
-        fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
-        fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
-        fclose(fid_temp);
-        end
-%       set(start_next_task,'visible','on');
-         if fault_no == 8
-           set(task_mess,'String',task_name(1));
-        elseif fault_no == 7
-            set(task_mess,'String',task_name(2));
-        elseif fault_no == 9
-            set(task_mess,'String',task_name(3));
-        elseif fault_no == 10
-            set(task_mess,'String',task_name(4));
-        elseif fault_no == 11
-            set(task_mess,'String',task_name(5));
-        elseif fault_no == 12
-            set(task_mess,'String',task_name(6));
-        elseif fault_no == 1
-            set(task_mess,'String',task_name(7));
-        elseif fault_no == 5
-            set(task_mess,'String',task_name(8));
-        elseif fault_no == 6
-            set(task_mess,'String',task_name(9));
-        end
     end
     function start_next_task_call(varargin)
          if task_no == 1
