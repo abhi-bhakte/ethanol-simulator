@@ -1,25 +1,25 @@
 
- START TIME = 03-Nov-2025 14:24:02
+ START TIME = 06-Feb-2026 14:45:40
 --------------------------------------------------------------
 
 How much physical activity was required (e.g. pushing, controlling activating etc.)? 
- 2
+ 5
 
 
 How much time pressure you did you feel due to the rate or pace at which the task or element occurred? 
- 3
+ 4
 
 
 How successful were you in accomplishing what you were asked to do? 
- 2
+ 4
 
 
 How hard did you have to work (mentally or physically) to accomplish your level of performance in accomplishing these tasks? 
- 5
+ 3
 
 
 How discouraged/ irritated/ stressed/ annoyed did you feel during tasks? 
- 5
+ 4
 
 
 --------------------------------------------------------------
