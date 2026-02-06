@@ -46,7 +46,7 @@ global alarm_var_tag_name
 global number_var_alarms description_of_alarms
 global uni s_deg alarm_var_store
 
-tag_for_plot = 0;
+tag_for_plot = 1; % Default to F101 plot at startup
 number_var_alarms = 11;
 alarm_var_tag_name = {'F101','F102','T101','T102','F105','T106','T105','T104','T103','C101','L101'};
 alarm_upper_limit = [ .95*1e3 200 40 32.5 .95*(.6482/.7)*1.129623*1e3 80.4 89.5 100.5 33 ((1/18)- 0.0540)*1e3*1e3 (.1858*1e3)/(1e2)];
@@ -62,7 +62,7 @@ err_ind_feed = 0;
 err_ind_cool = 0;
 err_ind_reflux = 0;
 err_ind_dist  = 0;
-tag_for_plot = 0;
+tag_for_plot = 1; % Default to F101 plot at startup
 
 %% Here change should be done if we add any other process variables in gui
 alarm_status = zeros(1,10);

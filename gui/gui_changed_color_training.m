@@ -42,10 +42,18 @@ control_stat_dist=2;
 f = figure('Visible','on','Name','Schematic Display',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
     'Position',[80,280,1220,515],'Resize','off','color',[127 127 127]./255); % place [ 0 0 0] to get previous color
+% Add title to schematic display window
+uicontrol(f,'Style','text','String','Plant Schematic Display','Units','normalized',...
+    'Position',[0 0.97 1 0.04],'BackgroundColor',[127 127 127]./255,'ForegroundColor',[0 0 0],...
+    'FontSize',14,'FontWeight','bold','HorizontalAlignment','center');
 
 f2 = figure('Visible','on','Name','Alarms Display',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
     'Position',[80, -170, 1220, 455],'Resize','off', 'color', [1 1 1]);
+% Add title to alarms display window
+uicontrol(f2,'Style','text','String','Alarms Display','Units','normalized',...
+    'Position',[0 0.95 1 0.05],'BackgroundColor',[1 1 1],'ForegroundColor',[0 0 0],...
+    'FontSize',14,'FontWeight','bold','HorizontalAlignment','center');
 
 
 % This is used to plot alarm display
@@ -133,7 +141,7 @@ set(ans_24,'String','M','foregroundcolor',[.8 0 .5],'fontsize',14);
 [ans_28,ff] = name_uicontrol(f); set(ans_28, 'Position',[800+120+15,365,ff(3)+44, ff(4)- 2],'visible','off'); % for reflux ratio
 
 %=========================== For Text Printing ===========================
-ans_29 =  uicontrol(f,'Style','text','Position',[500+120 100 320 70],'visible','off','String','Scenario Completed!!!','foregroundcolor',[33 61 33]./255,'fontsize',15);
+ans_29 =  uicontrol(f,'Style','text','Position',[500+260 200 320 70],'visible','off','String','Scenario Completed!!!','foregroundcolor',[33 61 33]./255,'fontsize',15);
 
 %% Historical Trend in Schematics Display
 % button for each variable
@@ -155,6 +163,7 @@ v11bh = uicontrol(f,'Style','pushbutton','backgroundcolor',[0 128 192]./255,'Str
 
 %%
 trendPanel = uipanel('Parent',f,'HandleVisibility','callback','Units','points','Position',[15 10 275+40 135+50]);
+
 %close Trend Panel button
 closeTrendbh = uicontrol('Parent',trendPanel,'Style','pushbutton','backgroundcolor',[0.7 0.7 0.7],'Units','points','Position',[0 0 20 12],...
     'HandleVisibility','callback','String','Close','FontSize',6.5,'Callback',@closeTrendFcn);
@@ -214,7 +223,7 @@ cvv = [0.95 0.95 0.95];alarm_text=cell(14,5);
 
 
 uicontrol(f2,'Style','text','String', 'Alarm Summary','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
-    'fontsize',12,'Position',[32 400 945 15],'fontweight','bold');
+    'fontsize',12,'Position',[32 400 945 15],'fontweight','bold','HorizontalAlignment','center');
 uicontrol(f2,'Style','text','String', 'Date & Time','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...
     'fontsize',11,'Position',[32 375 220 15],'fontweight','bold');
 % uicontrol(f2,'Style','text','String', 'Location','backgroundcolor',cvv, 'foregroundcolor',[0 0 0], 'Units', 'points',...

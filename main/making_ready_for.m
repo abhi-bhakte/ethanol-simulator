@@ -1,63 +1,85 @@
 
-% function making_ready_for()
-function making_ready_for(task_no,fault_no_list,fault_no)
-% fault_no = 5;
-% task_no = 1;
-% no_of_tasks = 1;
-% fault_no_list = [1 2 1 2 1 2 1 2 1 2];
-% clc;
+% =========================================================================
+% FUNCTION: making_ready_for
+% =========================================================================
+% Purpose: Prepares and displays task introduction and instruction windows
+%          for the ethanol distillation experiment
+%
+% Inputs:
+%   task_no       - Current task number (1 to no_of_tasks)
+%   fault_no_list - Array of fault scenario numbers for all tasks
+%   fault_no      - Fault number for the current task
+%
+% =========================================================================
 
+function making_ready_for(task_no,fault_no_list,fault_no)
+
+% -------------------------------------------------------------------------
+% SECTION 1: INITIALIZATION
+% -------------------------------------------------------------------------
+
+% Declare global variables
 global task_name no_of_tasks sequence_task ty intro_file t_start_exp fid_click
+
+% Add necessary paths
 addpath('data-collection');
 addpath('gui');
 addpath('utils');
 addpath('monitoring');
-% Initialize with a test to ensure the path is correct
+
+% Verify file path is accessible
 fid_click = fopen('data/text-logs/Mouse_click.txt','wt+');
 if fid_click == -1
     error('Could not open Mouse_click.txt file. Check path and permissions.');
 end
-fclose(fid_click); % Close it initially, will reopen when needed
+fclose(fid_click); % Close initially, will reopen when needed
 
+% -------------------------------------------------------------------------
+% SECTION 2: FIGURE WINDOW SETUP
+% -------------------------------------------------------------------------
+
+% Define common figure dimensions
+figWidth = 350;
+figHeight = 400;
+
+% Create instruction window (f_mess) - hidden initially
 f_mess = figure('Visible','off','Name','Operating details and Goal',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
-    'Position',[380 200,350,400],'Resize','off','color',.9.*[ 1 1 1]);  %400,250,550,515   [330 170
+    'Position',[0, 0, figWidth, figHeight],'Resize','off','color',.9.*[1 1 1]);
+movegui(f_mess,'center');
 
-f_task = figure('Visible','on','Name','Task Introduction',...
+% Create task introduction window (f_task) - hidden initially
+f_task = figure('Visible','off','Name','Task Introduction',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
-    'Position',[380 200,350,400],'Resize','off','color',.9.*[ 1 1 1]); %[330 170 
+    'Position',[0 0,figWidth,figHeight],'Resize','off','color',.9.*[1 1 1]);
+movegui(f_task,'center');
 
-f_finish  = figure('Visible','off','Name','End of demo tasks and start first scenario',...
+% Create finish/start window (f_finish) - hidden initially
+f_finish = figure('Visible','off','Name','End of demo tasks and start first scenario',...
     'Menubar','none','Toolbar','none', 'Units', 'points','NumberTitle','off',...
-    'Position',[380,200,350,400],'Resize','off','color',.9.*[ 1 1 1]);
+    'Position',[0,0,figWidth,figHeight],'Resize','off','color',.9.*[1 1 1]);
+movegui(f_finish,'center');
 
-task_name = { 'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-          'Maintain the ethanol plant at normal operating conditions with all variables within specified limits'
-        };
-% task_name = { 'Adjust the coolant valve to maintain the coolant flow rate'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%           'Adjust the reflux valve in order to bring the plant into normal condition'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%           'Maintain the plant in normal operating condition ( all the variables within the range )'
-%         };
+% -------------------------------------------------------------------------
+% SECTION 3: TASK DEFINITIONS
+% -------------------------------------------------------------------------
 
-finish_task = uicontrol(f_finish,'Style','pushbutton','String','Start Experiment','Units','points','fontsize',12,'Position',[225 250,125,30],'visible','on','Callback',@finish_task_call);
+% Define task description (same for all scenarios to maintain consistent objectives)
+task_description = 'Maintain the ethanol plant at normal operating conditions with all variables within specified limits';
 
-% Title for the panel
-title_text = uicontrol(f_mess,'Style','text','HorizontalAlignment','center','Units','Points','Position',[10,360,330,25],'String','ETHANOL PLANT CONTROL','backgroundcolor',.9.*[ 1 1 1],'foregroundcolor',[0.1 0.1 0.5],'fontsize',14,'fontweight','bold');
+% Create task names array - all tasks have the same objective
+task_name = repmat({task_description}, 1, 9);
 
-% Add operator image at the top of the popup (circular crop)
+% -------------------------------------------------------------------------
+% SECTION 4: UI CONTROLS - INSTRUCTION WINDOW (f_mess)
+% -------------------------------------------------------------------------
+
+% Title text
+title_text = uicontrol(f_mess,'Style','text','HorizontalAlignment','center','Units','Points',...
+    'Position',[10,360,330,25],'String','ETHANOL PLANT CONTROL','backgroundcolor',.9.*[1 1 1],...
+    'foregroundcolor',[0.1 0.1 0.5],'fontsize',14,'fontweight','bold');
+
+% Operator image with circular crop
 ax = axes('Parent',f_mess,'Units','points','Position',[125 240 110 110]);
 [scriptDir,~,~] = fileparts(mfilename('fullpath'));
 imgPath = fullfile(scriptDir, '..', 'media', 'images', 'operator.jpg');
@@ -79,167 +101,184 @@ centerY = rows / 2;
 radius = min(cols, rows) / 2;
 circleMask = ((X - centerX).^2 + (Y - centerY).^2) <= radius^2;
 
-% Apply mask - set outside circle to background color
+% Apply circular mask
 imgCircular = imgSquare;
 for i = 1:size(imgSquare, 3)
     channel = imgSquare(:,:,i);
     channel(~circleMask) = 230; % Match background color
     imgCircular(:,:,i) = channel;
 end
-
 imshow(imgCircular, 'Parent', ax);
 axis(ax, 'off');
 axis(ax, 'equal');
 
-% Rewritten instructions - clear, direct, operator-friendly
-Start_string = sprintf('YOUR TASK:\n• Keep the ethanol plant operating normally\n• All variables must stay WITHIN RANGE\n\nWHEN AN ALARM OCCURS:\n• You will hear a BEEP sound\n• A variable will CHANGE COLOR (red)\n• You have 2 MINUTES to restore normal operation\n\nIMPORTANT: No hints provided. Work independently.');
+% Instruction text
+Start_string = sprintf(['YOUR TASK:\n• Keep the ethanol plant operating normally\n'...
+    '• All variables must stay WITHIN RANGE\n\n'...
+    'WHEN AN ALARM OCCURS:\n• You will hear a BEEP sound\n'...
+    '• A variable will CHANGE COLOR (red)\n• You have 2 MINUTES to restore normal operation\n\n']);
 
-mess_fow = uicontrol(f_mess,'Style','text','HorizontalAlignment','left','Units','Points','Position',[15,90,320,130],'String',Start_string,'backgroundcolor',.9.*[ 1 1 1],'foregroundcolor',[0 0 0],'fontsize',10,'fontweight','bold');
+mess_fow = uicontrol(f_mess,'Style','text','HorizontalAlignment','left','Units','Points',...
+    'Position',[15,90,320,130],'String',Start_string,'backgroundcolor',.9.*[1 1 1],...
+    'foregroundcolor',[0 0 0],'fontsize',10,'fontweight','bold');
 
-start_make = uicontrol(f_mess,'Style','pushbutton','String','Next','Units','points','fontsize',12,'Position',[137.5 40,75,30],'visible','on','Callback',@start_make_call);
+% Next button for instruction window
+start_make = uicontrol(f_mess,'Style','pushbutton','String','Next','Units','points',...
+    'fontsize',12,'Position',[137.5 40,75,30],'visible','on','Callback',@start_make_call);
 
-% task_message = uicontrol
+% -------------------------------------------------------------------------
+% SECTION 5: UI CONTROLS - TASK WINDOW (f_task)
+% -------------------------------------------------------------------------
 
-task_mess = uicontrol(f_task,'Style','text','Units','Points','Position',[20,200,310,120],'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',13,'fontweight','bold');
+% Task message display
+task_mess = uicontrol(f_task,'Style','text','Units','Points','Position',[20,200,310,120],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',13,'fontweight','bold');
 
-% task_go = uicontrol(f_task,'Style','pushbutton','String','Start','Units','points','fontsize',12,'Position',[300 140,75,30],'visible','on','Callback',@task_go_call);
-
-
-finish_button = uicontrol(f_task,'Style','pushbutton','String','Finish','Units','points','fontsize',12,'Position',[137.5 80,75,30],'visible','off','Callback',@finish_button_callback);
+% Finish button
+finish_button = uicontrol(f_task,'Style','pushbutton','String','Finish','Units','points',...
+    'fontsize',12,'Position',[137.5 80,75,30],'visible','off','Callback',@finish_button_callback);
  
-next_task = uicontrol(f_task,'Style','pushbutton','String','Next','Units','points','fontsize',12,'Position',[137.5 80,75,30],'visible','off','Callback',@start_next_task_call);
+% Next task button
+next_task = uicontrol(f_task,'Style','pushbutton','String','Next','Units','points',...
+    'fontsize',12,'Position',[137.5 80,75,30],'visible','off','Callback',@start_next_task_call);
 
-start_next_task =  uicontrol(f_task,'Style','pushbutton','String','Start','Units','points','fontsize',12,'Position',[137.5 80,75,30],'visible','on','Callback',@start_next_button_callback);
-  if task_no < no_of_tasks  
-        fault_no = fault_no_list(task_no);
-  end
- if task_no <= no_of_tasks    
-     if task_no==1
-          set(f_mess,'visible','on');
-           set(f_task,'visible','off');
-%             set(task_mess,'String',cell2mat(task_name(fault_no)));
-     else
-%          set(trendPanel,'visible','off');
-         set(start_next_task,'visible','off');
-         set(f_task,'visible','on');
-%          if task_no < no_of_task
-            set(next_task,'visible','on');
-            eval(sprintf('set(task_mess,''String'',''End of task %d.  Press Next button to start next task'');',task_no - 1));
-            clc;
-%          end
-         
-     end
- else
-%      set(task_go,'visible','off');
-     set(f_task,'visible','on');
-     set(task_mess,'String','You have completed all the task. Press finish to fill up the feedback form.');
-     set(start_next_task,'visible','off');
-     set(finish_button,'visible','on');
- end
- 
-% function next_task_button_callback(varargin)
-%      set(next_task,'visible','off');
-%      set(start_next_task,'visible','on');
-%      set(task_mess,'String',cell2mat(task_name(fault_no)));
-%      
-% end
-%              
-    function start_make_call(varargin)
-         if task_no == 1
-              close(f_mess);
-               t_start_exp = tic;
+% Start next task button
+start_next_task = uicontrol(f_task,'Style','pushbutton','String','Start','Units','points',...
+    'fontsize',12,'Position',[137.5 60,75,30],'visible','on','Callback',@start_next_button_callback);
 
-              te = toc(t_start_exp);
-              fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
-              fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
-              fclose(fid_temp);
-              gui_changed_color(task_no,fault_no_list,fault_no);
-         end
+% -------------------------------------------------------------------------
+% SECTION 6: UI CONTROLS - FINISH WINDOW (f_finish)
+% -------------------------------------------------------------------------
+
+finish_task = uicontrol(f_finish,'Style','pushbutton','String','Start Experiment','Units',...
+    'points','fontsize',12,'Position',[225 250,125,30],'visible','on','Callback',@finish_task_call);
+
+% -------------------------------------------------------------------------
+% SECTION 7: TASK FLOW CONTROL
+% -------------------------------------------------------------------------
+
+% Update fault number if not at the last task
+if task_no < no_of_tasks  
+    fault_no = fault_no_list(task_no);
+end
+
+% Control window visibility based on task progress
+if task_no <= no_of_tasks    
+    if task_no == 1
+        % First task: show instruction window
+        set(f_mess,'visible','on');
+        set(start_make,'visible','on');
+        clc;
+    else
+        % Subsequent tasks: show task completion message
+        set(f_task,'visible','on');
+        eval(sprintf('set(task_mess,''String'',''End of task %d.  Press Next button to start next task'');',task_no - 1));
+        set(start_next_task,'visible','off');
+        set(next_task,'visible','on');
+        clc;
     end
-    function start_next_task_call(varargin)
-         if task_no == 1
-              close(f_mess);
-              set(f_task,'visible','on')
+else
+    % All tasks completed: show finish screen
+    set(f_task,'visible','on');
+    set(task_mess,'String','You have completed all the task. Press finish to fill up the feedback form.');
+    set(start_next_task,'visible','off');
+    set(finish_button,'visible','on');
+end
 
-              te = toc(t_start_exp);
-              intro_file = fopen('data\text-logs\Introduction.txt','at+');
-              fprintf(intro_file,'start_time task no: %d %d  %.6f \n',task_no,floor(te),(te-floor(te)));
+% -------------------------------------------------------------------------
+% SECTION 8: CALLBACK FUNCTIONS
+% -------------------------------------------------------------------------
 
-         end
-      te = toc(t_start_exp);
-%       intro_file = fopen('Introduction.txt','at+');
-%       fid_click = file_clk;
-      fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
-      fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
-      fclose(fid_temp);
-%       fprintf(intro_file,'Ready_next_task: %d %d  %.6f \n',task_no,floor(te),(te-floor(te)));
-
-        set(next_task,'visible','off');
-        set(start_next_task,'visible','on');
-       
-%         set(start_next_task,'visible','on');
-        if fault_no == 8
-           set(task_mess,'String',task_name(1));
-        elseif fault_no == 7
-            set(task_mess,'String',task_name(2));
-        elseif fault_no == 9
-            set(task_mess,'String',task_name(3));
-        elseif fault_no == 10
-            set(task_mess,'String',task_name(4));
-        elseif fault_no == 11
-            set(task_mess,'String',task_name(5));
-        elseif fault_no == 12
-            set(task_mess,'String',task_name(6));
-        elseif fault_no == 1
-            set(task_mess,'String',task_name(7));
-        elseif fault_no == 5
-            set(task_mess,'String',task_name(8));
-        elseif fault_no == 6
-            set(task_mess,'String',task_name(9));
-        end
-    end
-    function start_next_button_callback(varargin)
+% -------------------------------------------------------------------------
+% Callback: start_make_call
+% Triggered when user clicks "Next" on instruction window (first task)
+% -------------------------------------------------------------------------
+function start_make_call(varargin)
+    if task_no == 1
+        close(f_mess);
+        t_start_exp = tic;
         
-        set(f_task,'visible','off');
-         te = toc(t_start_exp);
-%          intro_file = fopen('Introduction.txt','at+');
-%        fprintf(intro_file,'Entering the GUI after instruction for task no: %d %d  %.6f \n',task_no,floor(te),(te-floor(te)));
-         % Open file each time to avoid handle issues
-         fid_click = fopen('data/text-logs/Mouse_click.txt','at+');
-         fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),0,0,1,'Start_next_task',0000);
-         fclose(fid_click);
-%         eye_track_automatic1(task_no,fault_no_list,fault_no);
-%            setDesktopVisibility('off')
-
+        % Log event to Mouse_click.txt
+        te = toc(t_start_exp);
+        fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
+        fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+            floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
+        fclose(fid_temp);
+        
+        % Launch GUI for the task
         gui_changed_color(task_no,fault_no_list,fault_no);
     end
-    function finish_button_callback(varargin)
-             set(finish_button,'visible','off');
-             set(task_mess,'String',' ');
-             feedback_per_task;
-             set(task_mess,'Position',[50,250,1,1]);
-%              imshow('Thanks.png');
-             fclose(intro_file);
-             
-               
-  %-------------------------Writing the Gaze data -------------------           
-%              tetio_stopTracking;
-%              pauseTimeInSeconds = 0.01;
-%              durationInSeconds = 0.01;
-%              [leftEyeAll, rightEyeAll, timeStampAll] = DataCollect(durationInSeconds, pauseTimeInSeconds);
-             
-%              for i = 2:length(timeStampAll)
-%                  timeStampAll(i) = timeStampAll(i-1) + timeStampAll(i);
-%              end
-%              sec = floor(timeStampAll/1e6);   % TO CONVERT INTO SECS
-%              microsec  = timeStampAll - sec*1e6;       
-%              eval(sprintf('xlswrite(''gaze_rawdata_%s.xlsx'',[sec microsec leftEyeAll rightEyeAll])',ty));
+end
 
-             
-%              tetio_disconnectTracker; 
-%              tetio_cleanUp;
-%              pause(3);
-%              setDesktopVisibility('on');
+% -------------------------------------------------------------------------
+% Callback: start_next_task_call
+% Triggered when user clicks "Next" button between tasks
+% -------------------------------------------------------------------------
+function start_next_task_call(varargin)
+    if task_no == 1
+        close(f_mess);
+        set(f_task,'visible','on')
+        
+        % Log start time to Introduction.txt
+        te = toc(t_start_exp);
+        intro_file = fopen('data\text-logs\Introduction.txt','at+');
+        fprintf(intro_file,'start_time task no: %d %d  %.6f \n',...
+            task_no,floor(te),(te-floor(te)));
     end
+    
+    % Log event to Mouse_click.txt
+    te = toc(t_start_exp);
+    fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
+    fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+        floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
+    fclose(fid_temp);
+    
+    % Update UI for next task
+    set(next_task,'visible','off');
+    set(start_next_task,'visible','on');
+    
+    % Set task message based on fault number using index mapping
+    fault_to_index = containers.Map([1, 3, 4, 5, 7, 8, 10, 2, 6], 1:9);
+    if isKey(fault_to_index, fault_no)
+        set(task_mess,'String',task_name(fault_to_index(fault_no)));
+    else
+        set(task_mess,'String','Unknown task');
+    end
+end
+
+% -------------------------------------------------------------------------
+% Callback: start_next_button_callback
+% Triggered when user clicks "Start" button to begin a task
+% -------------------------------------------------------------------------
+function start_next_button_callback(varargin)
+    set(f_task,'visible','off');
+    te = toc(t_start_exp);
+    
+    % Log event to Mouse_click.txt
+    fid_click = fopen('data/text-logs/Mouse_click.txt','at+');
+    fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+        floor(te),(te-floor(te)),0,0,1,'Start_next_task',0000);
+    fclose(fid_click);
+    
+    % Launch GUI for the task
+    gui_changed_color(task_no,fault_no_list,fault_no);
+end
+
+% -------------------------------------------------------------------------
+% Callback: finish_button_callback
+% Triggered when user completes all tasks and clicks "Finish"
+% -------------------------------------------------------------------------
+function finish_button_callback(varargin)
+    set(finish_button,'visible','off');
+    set(task_mess,'String',' ');
+    
+    % Display feedback form
+    feedback_per_task;
+    set(task_mess,'Position',[50,250,1,1]);
+    
+    % Close introduction file
+    fclose(intro_file);
+end
+
 end
 

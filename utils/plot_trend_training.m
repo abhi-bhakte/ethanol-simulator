@@ -74,15 +74,26 @@ if current_time_index*t_run2 >= N*t_run2
     %         drawnow
     
     plot(varTrend,temp,alarm_var_store(tag_for_plot,current_time_index:-1:current_time_index-(N-1)),'--*'); hold(varTrend,'on');
-    plot(varTrend,[current_time_index*t_run2 temp(end)],[alarm_upper_limit(tag_for_plot) alarm_upper_limit(tag_for_plot)],'r--'); hold(varTrend,'on');
-    plot(varTrend,[current_time_index*t_run2 temp(end)],[alarm_lower_limit(tag_for_plot) alarm_lower_limit(tag_for_plot)],'r--');hold(varTrend,'on');
+    set(varTrend,'Color',[0.95 0.95 0.95]);
+    set(varTrend,'box','on');
+    set(varTrend,'YAxisLocation','left');
+    set(varTrend,'XGrid','on','YGrid','on');
+    set(varTrend,'GridColor',[0.85 0.85 0.85],'GridAlpha',0.5);
+    set(varTrend,'LineWidth',1.2);
+    plot(varTrend,[current_time_index*t_run2 temp(end)],[alarm_upper_limit(tag_for_plot) alarm_upper_limit(tag_for_plot)],'r--','LineWidth',1.5); hold(varTrend,'on');
+    plot(varTrend,[current_time_index*t_run2 temp(end)],[alarm_lower_limit(tag_for_plot) alarm_lower_limit(tag_for_plot)],'r--','LineWidth',1.5);hold(varTrend,'on');
     set(varTrend,'XLim',[temp(end) temp(1)]);
     text(temp(end)+t_run2,alarm_lower_limit(tag_for_plot)+.1*(alarm_upper_limit(tag_for_plot)-alarm_lower_limit(tag_for_plot)),'Low Alarm Limit','fontweight','bold','fontsize',8,'Color',[1 0 0],'Parent',varTrend);hold(varTrend,'on');
     text(temp(end)+t_run2,alarm_upper_limit(tag_for_plot)-.1*(alarm_upper_limit(tag_for_plot)-alarm_lower_limit(tag_for_plot)),'High Alarm Limit','fontweight','bold','fontsize',8,'Color',[1 0 0],'Parent',varTrend);hold(varTrend,'on');
     ch  = sprintf('%.2f%s',alarm_var_store(tag_for_plot,current_time_index));
     t_text = cell2mat(alarm_var_tag_name(tag_for_plot));
     t_text2 =   cell2mat(uni(tag_for_plot));
-    ch_val = [t_text '='  ch ' ' t_text2];
+    
+    % Update the variable display text at the top of the panel
+    var_display_handle = findobj(trendPanel, 'Tag', 'var_display');
+    if ~isempty(var_display_handle)
+        set(var_display_handle, 'String', [ t_text ' = ' ch ' ' t_text2]);
+    end
     
     text(.35,1.05,ch_val,'Units','normalized','fontweight','bold','fontsize',12,'Color',[0 0 0],'Parent',varTrend);hold(varTrend,'on');
     set(varTrend,'Units','points');
@@ -102,17 +113,28 @@ else
     temp_store = alarm_var_store(tag_for_plot,1:current_time_index);
     temp_store = [(ones((N-current_time_index),1)*alarm_var_store(tag_for_plot,current_time_index))' temp_store];
     plot(varTrend,temp_time,temp_store,'--*');hold(varTrend,'on');
-    plot(varTrend,[temp_time(1) temp_time(end)],[alarm_upper_limit(tag_for_plot) alarm_upper_limit(tag_for_plot)],'r--');hold(varTrend,'on');
-    plot(varTrend,[temp_time(1) temp_time(end)],[alarm_lower_limit(tag_for_plot) alarm_lower_limit(tag_for_plot)],'r--'); hold(varTrend,'on');
+    set(varTrend,'Color',[0.95 0.95 0.95]);
+    set(varTrend,'box','on');
+    set(varTrend,'YAxisLocation','left');
+    set(varTrend,'XGrid','on','YGrid','on');
+    set(varTrend,'GridColor',[0.85 0.85 0.85],'GridAlpha',0.5);
+    set(varTrend,'LineWidth',1.2);
+    plot(varTrend,[temp_time(1) temp_time(end)],[alarm_upper_limit(tag_for_plot) alarm_upper_limit(tag_for_plot)],'r--','LineWidth',1.5);hold(varTrend,'on');
+    plot(varTrend,[temp_time(1) temp_time(end)],[alarm_lower_limit(tag_for_plot) alarm_lower_limit(tag_for_plot)],'r--','LineWidth',1.5); hold(varTrend,'on');
     set(varTrend,'XLim',[temp_time(end) temp_time(1)]);
     text(temp_time(1)+t_run2,alarm_lower_limit(tag_for_plot)+.1*(alarm_upper_limit(tag_for_plot)-alarm_lower_limit(tag_for_plot)),'Low Alarm Limit','fontweight','bold','fontsize',8,'Color',[1 0 0],'Parent',varTrend);hold(varTrend,'on');
     text(temp_time(1)+t_run2,alarm_upper_limit(tag_for_plot)-.1*(alarm_upper_limit(tag_for_plot)-alarm_lower_limit(tag_for_plot)),'High Alarm Limit','fontweight','bold','fontsize',8,'Color',[1 0 0],'Parent',varTrend);hold(varTrend,'on');
     ch  = sprintf('%.2f%s',alarm_var_store(tag_for_plot,current_time_index));
     t_text = cell2mat(alarm_var_tag_name(tag_for_plot));
     t_text2 =   cell2mat(uni(tag_for_plot));
-    ch_val = [t_text '='  ch ' ' t_text2];
     
-    text(.35,1.05,ch_val,'Units','normalized','fontweight','bold','fontsize',12,'Color',[0 0 0],'Parent',varTrend);hold(varTrend,'on');
+    % Update the variable display text at the top of the panel
+    var_display_handle = findobj(trendPanel, 'Tag', 'var_display');
+    if ~isempty(var_display_handle)
+        set(var_display_handle, 'String', [ t_text ' = ' ch ' ' t_text2]);
+    end
+    
+%     text(.35,1.05,ch_val,'Units','normalized','fontweight','bold','fontsize',12,'Color',[0 0 0],'Parent',varTrend);hold(varTrend,'on');
     set(varTrend,'Units','points');
     drawnow
     

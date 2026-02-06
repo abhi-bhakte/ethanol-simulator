@@ -264,19 +264,19 @@
 %
 % The simulator implements 12 different fault scenarios for training and research:
 %
-%   1. Feed flow reduction       - Reduced reactant feed to CSTR
-%   2. Reaction rate change      - Modified reaction kinetics
-%   3. Coolant flow reduction    - Reduced cooling capacity
-%   4. Distillation flow reduction - Reduced feed to distillation
-%   5. Reflux valve malfunction  - Stuck reflux valve
-%   6. Reboiler power reduction  - Reduced heating duty
-%   7. Feed flow increase        - Excessive reactant feed
-%   8. Coolant flow increase     - Excessive cooling
-%   9. Distillation valve stuck  - Fixed distillation feed valve
-%  10. Reflux valve stuck        - Fixed reflux valve position
-%  11. Feed flow sensor fault    - Sensor measurement error
-%  12. Coolant flow sensor fault - Cooling sensor error
-%
+%   1. Feed flow reduction             - Reduced maximum possible feed to CSTR (simulates supply limitation or partial blockage by lowering V102.flowin after fault time)
+%   2. Reaction rate change            - Modified reaction kinetics
+%   3. Coolant flow reduction          - Reduced maximum possible coolant flow (simulates reduced cooling capacity by lowering V301.flowin after fault time)
+%   4. Distillation flow reduction     - Reduced feed to distillation (after fault time, the distillation feed valve V201.valvepos is set to 0.5 ONCE, reducing flow by 50%; simulates partial blockage or valve malfunction, not a leak)
+%   5. Reflux valve set high           - After fault time, the reflux valve (V401.valvepos) is set to 0.75 ONCE, simulating a malfunction (e.g., actuator or control error) that causes the valve to move to a high unintended position; controller can recover if enabled
+%   6. Reboiler power reduction        - Reduced heating duty
+%   7. Feed flow increase              - Excessive reactant feed (after fault time, the maximum possible feed flow V102.flowin is increased to 2.1 to simulate a stuck valve or operator error; actual flow is determined by valve position)
+%   8. Coolant flow increase           - Excessive cooling (after fault time, the maximum possible coolant flow V301.flowin is increased to 480 to simulate a stuck valve or operator error; actual flow is determined by valve position)
+%   9. Distillation  feed valve stuck  - Fixed distillation feed valve
+%  10. Reflux valve set low            - After fault time, the reflux valve (V401.valvepos) is set to 0.4 ONCE, simulating a malfunction (e.g., actuator or control error) that causes the valve to move to a low unintended position; controller can recover if enabled
+%  11. Feed flow leakage               - After fault time, a fixed amount is subtracted from the feed flow to simulate a leak in the feed line (loss of material regardless of valve position)
+%  12. Coolant flow leakage            - After fault time, a fixed amount is subtracted from the coolant flow to simulate a leak in the coolant line (loss of coolant regardless of valve position)
+
 
 %
 %==========================================================================

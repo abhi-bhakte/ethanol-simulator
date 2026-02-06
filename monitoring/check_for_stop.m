@@ -54,8 +54,9 @@ time_track_for_experiment(time_track_count) = toc(t_start_exp);
         [a_c b_c c_c d_c e_c f_c g_c] = textread('data\text-logs\Mouse_click.txt','%s %s %s %s %s %s %s','whitespace',' ','bufsize',10000);
         ty = time_start_first;
         ty([12 15 18]) = '_';
+        global id_num;
         if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c) && ~isempty(g_c)
-            eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_click_case4_%s.xlsx'',[a_c b_c c_c d_c e_c f_c g_c],%d);',ty,task_no));
+            eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_click_%s_%s.xlsx'',[a_c b_c c_c d_c e_c f_c g_c],%d);',id_num,ty,task_no));
         end
         
         fclose(fid_click);
@@ -64,7 +65,7 @@ time_track_for_experiment(time_track_count) = toc(t_start_exp);
         ty = time_start_first;
         ty([12 15 18]) = '_';
         if ~isempty(a_a) && ~isempty(b_a) && ~isempty(c_a) 
-            eval(sprintf('xlswrite(''data\\excel-outputs\\Alarm_timing_case4_%s.xlsx'',[a_a b_a c_a],%d);',ty,task_no));
+            eval(sprintf('xlswrite(''data\\excel-outputs\\Alarm_timing_%s_%s.xlsx'',[a_a b_a c_a],%d);',id_num,ty,task_no));
             
         end
 
@@ -72,11 +73,15 @@ time_track_for_experiment(time_track_count) = toc(t_start_exp);
 
  %%--------------writing to process data-----------------------
         process_var_store = [time_for_process_var(1:index_for_scenario,:) alarm_var_store(1:number_var_alarms,1:index_for_scenario)' slider_var_store(1:4,1:index_for_scenario)'];
-        eval(sprintf('xlswrite(''data\\excel-outputs\\Process_data_case4_%s.xlsx'',process_var_store,%d);',ty,task_no));
+        ty = time_start_first;
+        ty([12 15 18]) = '_';
+        eval(sprintf('xlswrite(''data\\excel-outputs\\Process_data_%s_%s.xlsx'',process_var_store,%d);',id_num,ty,task_no));
         
         [a_c b_c c_c d_c e_c f_c] = textread('data\text-logs\task_no.txt','%s %s %s %s %s %s','whitespace',' ','bufsize',10000);
+        ty = time_start_first;
+        ty([12 15 18]) = '_';
         if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c)
-            eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_move_case4_%s.xlsx'',[a_c b_c c_c d_c e_c f_c],%d);',ty,task_no));
+            eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_move_%s_%s.xlsx'',[a_c b_c c_c d_c e_c f_c],%d);',id_num,ty,task_no));
         end
         fclose(fid_mouse_move);
         
