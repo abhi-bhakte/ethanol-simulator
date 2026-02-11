@@ -19,6 +19,9 @@
 clc;
 clear;
 
+% Seed RNG for randomized sequences each run
+rng('shuffle');
+
 % Add all required module paths to MATLAB search path
 addpath('main');
 addpath('gui');
@@ -37,8 +40,9 @@ beep off
 
 % Declare global variables for cross-function communication
 global fid fid_click fault_time count_completed auto_matic_shutdown
-global es_flag task_complete_flag no_of_tasks tasks id_num sequence_task
+global es_flag task_complete_flag no_of_tasks tasks id_num
 global task fid_alarm_timing calibration_completed calibration_step
+global task_no_current  % Track current task number for display configuration
 
 % -------------------------------------------------------------------------
 % SECTION 3: FILE HANDLERS INITIALIZATION
@@ -48,10 +52,13 @@ global task fid_alarm_timing calibration_completed calibration_step
 calibration_completed = false;
 calibration_step = 0;
 
+% Initialize current task number (will be updated for each task)
+task_no_current = 1;
+
 % Open log files for data recording
-fid_click = fopen('data\text-logs\Mouse_click.txt','wt+');
-fid_alarm_timing = fopen('data\text-logs\alarm_timing.txt','wt+');
-intro_file = fopen('data\text-logs\Introduction.txt','wt+');
+fid_click = fopen(sprintf('data\\text-logs\\Mouse_click_%s.txt', id_num),'wt+'); % per-user mouse click log
+fid_alarm_timing = fopen(sprintf('data\\text-logs\\alarm_timing_%s.txt', id_num),'wt+'); % per-user alarm timing log
+intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'wt+');
 
 % Initialize experiment state flags
 count_completed = 0;
@@ -74,17 +81,19 @@ fprintf(intro_file,'\nID No: = %s \n',id_num);
 % SECTION 5: EXPERIMENT CONFIGURATION
 % -------------------------------------------------------------------------
 
-% Define experiment parameters
-no_of_tasks = 6;              % Total number of tasks
+% Define experiment parameterssequence_task
+no_of_tasks = 7;              % Total number of tasks
 task_no = 1;                  % Start with first task
-no_of_faults = 6;             % Number of fault scenarios
+no_of_faults = 7;             % Number of fault scenarios
 
-% Define fault sequence for all tasks
-fault_no_list = [1 3 4 5 7 8];
-fault_no = fault_no_list(task_no);  % Get fault for current task
+% Define allowed faults and randomize the sequence for this session
+allowed_faults = [1 3 4 5 7 8 10];
+idx = randperm(numel(allowed_faults), no_of_tasks);
+fault_no_list = allowed_faults(idx);   % randomized unique faults for tasks
+fault_no = fault_no_list(task_no);     % Get fault for current task
 
-% Define task execution sequence
-sequence_task = [1 3 4 5 7 8];
+% Define task execution sequence (same as randomized fault order for logging)
+sequence_task = fault_no_list;
 task = sequence_task(1);  % Start with first task in sequence
 
 % Log task sequence to introduction file
@@ -95,11 +104,16 @@ fprintf(intro_file,'\nsequence of task: = %s \n',num2str(sequence_task));
 % -------------------------------------------------------------------------
 
 % Generate random numbers for potential timing variations
-rand_num = floor(10*rand(1,12));
+rand_num = randi([15 20], 1, no_of_tasks);
 
 % Define fault occurrence timing (in seconds) for each task
-% All tasks set to 20 seconds before fault occurs
-fault_time = [20 20 20 20 20 20 20 20 20 20 20 20];
+% Randomize each task fault time between 15 and 20 seconds (inclusive)
+fault_time = 1000 * ones(1, 12);
+
+fault_time(allowed_faults) = rand_num;
+
+% Log randomized fault timings to introduction file
+fprintf(intro_file,'\nFault timings (s): = %s \n', num2str(fault_time));
 
 % -------------------------------------------------------------------------
 % SECTION 7: SESSION DATA STORAGE

@@ -12,6 +12,9 @@ global queans1 queans2 queans3 queans4 queans5 no_of_tasks
 global submit_flag
 global time_track_count time_track_for_experiment t_start_exp
 
+% Also need the participant id for per-user logging
+global id_num
+
 % task_no_feed = task_no;
 % fault_no_feed = fault_no;
 % fault_no_list_feed = fault_no_list;
@@ -76,7 +79,7 @@ set(five_option_3,'SelectionChangeFcn',@five_option_callback_3);
 set(five_option_4,'SelectionChangeFcn',@five_option_callback_4);
 set(five_option_5,'SelectionChangeFcn',@five_option_callback_5);
 
-fid_task_ques = fopen('data\text-logs\feedback_for_tasks.txt','wt+');
+fid_task_ques = fopen(sprintf('data\\text-logs\\feedback_for_tasks_%s.txt', id_num),'wt+');
 
 % fprintf(fid_task_ques,'\n-----------------------------------Task %d---------------------------',task_no);
 % fprintf(fid_task_ques,'\n-----------------------------------Fault No %d-----------------------',fault_no);
@@ -492,6 +495,7 @@ uncheck_all
        close(f_feedback_task);
        imshow('media\images\Thanks.png');
                        
+
          else 
              set(text_submit,'visible','on');
         end

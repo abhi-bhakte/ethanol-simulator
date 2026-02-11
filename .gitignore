@@ -34,6 +34,8 @@ data-collection/eye_track_data_*/
 
 # Logs, temporary files
 *.log
+*.txt
+*.mat
 tmp/
 temp/
 

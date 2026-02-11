@@ -85,8 +85,14 @@ global calibration_completed calibration_step
 % File I/O handles
 global fid fid_click fid_mouse_move fid_alarm_timing intro_file file_clk
 
+% Participant identifier shared with start_experiment
+global id_num
+
+% Task display configuration
+global task_no_current
+
 % Data collection variables
-global sequence_task Calib pts trackerId leftEyeAll rightEyeAll timeStampAll
+global Calib pts trackerId leftEyeAll rightEyeAll timeStampAll
 global index_for_scenario alarm_var_store number_var_alarms slider_var_store
 
 % Status flags
@@ -226,9 +232,9 @@ end
 % Left panel: Alarm Summary table
 % Middle panel: Historical Trend plotting
 % Right panel: Explanation/Help text
-leftPanel  = uipanel(gl,'BackgroundColor',[127 127 127]./255);
-midPanel   = uipanel(gl,'BackgroundColor',[127 127 127]./255);
-rightPanel = uipanel(gl,'BackgroundColor',[127 127 127]./255);
+leftPanel  = uipanel(gl,'BackgroundColor',.9.*[1 1 1]);
+midPanel   = uipanel(gl,'BackgroundColor',.9.*[1 1 1]);
+rightPanel = uipanel(gl,'BackgroundColor',.9.*[1 1 1]);
 
 % Position panels manually if grid layout not available
 if ~strcmp(get(gl,'Type'),'uigridlayout')
@@ -261,8 +267,8 @@ set(f2,'WindowButtonDownFcn',@mytestcallback2); % Mouse click on alarm summary
 
 fid_click = fopen('data\text-logs\Mouse_click.txt','wt+');
 fid_click = file_clk;
-fid_mouse_move = fopen('data\text-logs\task_no.txt','wt+');
-fid_alarm_timing = fopen('data\text-logs\alarm_timing.txt','wt+');
+fid_mouse_move = fopen(sprintf('data\\text-logs\\task_no_%s.txt', id_num),'wt+');
+fid_alarm_timing = fopen(sprintf('data\\text-logs\\alarm_timing_%s.txt', id_num),'wt+');
 
 % -------------------------------------------------------------------------
 % SECTION 8: PROCESS VARIABLE DISPLAY CONTROLS (TEXT BOXES)
@@ -354,7 +360,7 @@ end
 % Creates a table on the left panel displaying real-time alarm messages
 % with Date & Time, Source, Condition, and Description columns
 
-cvv = [127 127 127]./255; 
+cvv = .9.*[1 1 1]; 
 alarm_text = cell(14,4);
 
 % Table title - Centered
@@ -404,18 +410,18 @@ end
 % Creates panel for displaying historical process variable trends
 
 % Middle panel contains the trend plot for selected process variable
-trendPanel = uipanel('Parent',midPanel,'HandleVisibility','callback','Units','normalized','Position',[0 0 1 1],'BackgroundColor',[127 127 127]./255);
+trendPanel = uipanel('Parent',midPanel,'HandleVisibility','callback','Units','normalized','Position',[0 0 1 1],'BackgroundColor',.9.*[1 1 1]);
 
 % Panel title - Centered
 uicontrol(trendPanel,'Style','text','String','Process Variable Trend', ...
     'Units','normalized','Position',[0 0.92 1 0.08], ...
-    'BackgroundColor',[127 127 127]./255,'ForegroundColor',[0 0 0], ...
+    'BackgroundColor',.9.*[1 1 1],'ForegroundColor',[0 0 0], ...
     'FontWeight','bold','FontSize',12,'HorizontalAlignment','center');
 
 % Current variable and value display text
 uicontrol(trendPanel,'Style','text','String',' -- ', ...
     'Units','normalized','Position',[0.03 0.83 0.94 0.06], ...
-    'BackgroundColor',[127 127 127]./255,'ForegroundColor',[0 0 0], ...
+    'BackgroundColor',.9.*[1 1 1],'ForegroundColor',[0 0 0], ...
     'HorizontalAlignment','center','FontSize',10,'FontWeight','bold','Tag','var_display');
 
 % Close button for trend panel (invisible but provides callback functionality)
@@ -434,19 +440,19 @@ set(trendPanel,'Visible','off');
 % -------------------------------------------------------------------------
 % Right panel contains AI fault prediction display
 
-trendPanelRight = uipanel('Parent',rightPanel,'HandleVisibility','callback','Units','normalized','Position',[0 0 1 1],'BackgroundColor',[127 127 127]./255);
+trendPanelRight = uipanel('Parent',rightPanel,'HandleVisibility','callback','Units','normalized','Position',[0 0 1 1],'BackgroundColor',.9.*[1 1 1]);
 
-% Explanation title - Centered
-uicontrol(trendPanelRight,'Style','text','String','Explanation', ...
+% Process status title - Centered
+uicontrol(trendPanelRight,'Style','text','String','Process Status', ...
     'Units','normalized','Position',[0 0.92 1 0.08], ...
-    'BackgroundColor',[127 127 127]./255,'ForegroundColor',[0 0 0], ...
+    'BackgroundColor',.9.*[1 1 1],'ForegroundColor',[0 0 0], ...
     'FontWeight','bold','FontSize',12,'HorizontalAlignment','center');
 
 % Current fault prediction text
 fault_prediction_text = uicontrol(trendPanelRight,'Style','text', ...
     'String', 'Fault: Normal Operation', ...
     'Units','normalized','Position',[0.03 0.15 0.94 0.77], ...
-    'BackgroundColor',[127 127 127]./255,'ForegroundColor',[0 0 0], ...
+    'BackgroundColor',.9.*[1 1 1],'ForegroundColor',[0 0 0], ...
     'HorizontalAlignment','left','FontSize',10,'FontWeight','bold');
 
 % -------------------------------------------------------------------------
@@ -549,28 +555,28 @@ alarm_text = cell(14,4);
 
 % Table title
 uicontrol(leftPanel,'Style','text','String','Alarm Summary',...
-    'backgroundcolor',cvv,'foregroundcolor',[0 0 0],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],...
     'Units','normalized','fontsize',10,'Position',[0.03 0.92 0.94 0.05],...
     'fontweight','bold');
 
 % Column headers
 uicontrol(leftPanel,'Style','text','String','Date & Time',...
-    'backgroundcolor',cvv,'foregroundcolor',[0 0 0],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],...
     'Units','normalized','fontsize',10,'Position',[0.03 0.84 0.25 0.05],...
     'fontweight','bold');
 
 uicontrol(leftPanel,'Style','text','String','Source',...
-    'backgroundcolor',cvv,'foregroundcolor',[0 0 0],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],...
     'Units','normalized','fontsize',10,'Position',[0.28 0.84 0.20 0.05],...
     'fontweight','bold');
 
 uicontrol(leftPanel,'Style','text','String','Condition',...
-    'backgroundcolor',cvv,'foregroundcolor',[0 0 0],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],...
     'Units','normalized','fontsize',10,'Position',[0.48 0.84 0.15 0.05],...
     'fontweight','bold');
 
 uicontrol(leftPanel,'Style','text','String','Description',...
-    'backgroundcolor',cvv,'foregroundcolor',[0 0 0],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],...
     'Units','normalized','fontsize',10,'Position',[0.63 0.84 0.32 0.05],...
     'fontweight','bold');
 % Create 14 rows of cells using normalized positions
@@ -581,7 +587,7 @@ for ii = 1:4
     for j = 1:14
         y = rowTop - (j-1)*rowStep;
         alarm_text{j,ii} = uicontrol(leftPanel,'Style','text','String','',...
-            'backgroundcolor',cvv,'foregroundcolor',[0 0 0],'Units','normalized',...
+            'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'Units','normalized',...
             'fontsize',10,'Position',[colX(ii) y colW(ii) rowH],'fontweight','normal');
     end
 end
@@ -643,7 +649,6 @@ V201.valvepos = 1.0;
     % Triggered when user clicks "Start" button
     % Initializes simulation, enables controls, and launches main control loop
     function myStartFcn1(varargin)
-        
         es_flag = 0;
         task_complete_flag = 0;  
         time_start = datestr(clock); % clock is a function and so as datestr
@@ -674,7 +679,7 @@ V201.valvepos = 1.0;
 %             eval(sprintf(' TrackStart(1,''eye_track_data_%s'');',time_mode));
             
         end
-        intro_file = fopen('data\text-logs\Introduction.txt','at+');
+        intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'at+');
         fprintf(intro_file,'Start Time = %s \n',time_start_mili);
         set(slider_reflux,'Enable','on');
         set(slider_feed,'Enable','on');
@@ -694,7 +699,7 @@ V201.valvepos = 1.0;
         po_mid(1) = po(1) + (po(3)/2);
         po_mid(2) = po(2) + (po(4)/2);
         te = toc(t_start_exp);
-        fid_click = fopen('data\text-logs\Mouse_click.txt','at+');
+        fid_click = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
         fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
             floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Start',0000);
         main_file_kaushik_parameters(task_no_lo,fault_no_list_lo,fault_no_lo)
@@ -759,15 +764,14 @@ V201.valvepos = 1.0;
         fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'Emergency_Shutdown',0000);
         
 %------------------writing ti mouse click---------------------------------
-        global id_num;
-        [a_c b_c c_c d_c e_c f_c g_c] = textread('data\text-logs\Mouse_click.txt','%s %s %s %s %s %s %s','whitespace',' ','bufsize',10000);
+        [a_c b_c c_c d_c e_c f_c g_c] = textread(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'%s %s %s %s %s %s %s','whitespace',' ','bufsize',10000);
         ty = time_start_first;
         ty([12 15 18]) = '_';
         if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c) && ~isempty(g_c)
             eval(sprintf('xlswrite(''data\\excel-outputs\\Mouse_click_%s_%s.xlsx'',[a_c b_c c_c d_c e_c f_c g_c],%d);',id_num,ty,task_no));
         end
 %  -------------------------------alarm data-----------------------------        
-        [a_a b_a c_a ] = textread('data\text-logs\alarm_timing.txt','%s %s %s','whitespace',' ','bufsize',10000);
+        [a_a b_a c_a ] = textread(sprintf('data:text-logs/alarm_timing_%s.txt', id_num),'%s %s %s','whitespace',' ','bufsize',10000);
         ty = time_start_first;
         ty([12 15 18]) = '_';
         if ~isempty(a_a) && ~isempty(b_a) && ~isempty(c_a) 
@@ -781,7 +785,7 @@ V201.valvepos = 1.0;
         ty([12 15 18]) = '_';
         eval(sprintf('xlswrite(''data\\excel-outputs\\Process_data_%s_%s.xlsx'',process_var_store,%d);',id_num,ty,task_no));
         
-        [a_c b_c c_c d_c e_c f_c] = textread('data\text-logs\task_no.txt','%s %s %s %s %s %s','whitespace',' ','bufsize',10000);
+        [a_c b_c c_c d_c e_c f_c] = textread(sprintf('data\\text-logs\\task_no_%s.txt', id_num),'%s %s %s %s %s %s','whitespace',' ','bufsize',10000);
         ty = time_start_first;
         ty([12 15 18]) = '_';
         if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c)
@@ -1000,7 +1004,7 @@ te = toc(t_start_exp);
         po = get(v1bh,'Position');
         po_mid(1) = po(1) + (po(3)/2);
         po_mid(2) = po(2) + (po(4)/2);
-%         fprintf(fid_click,'%.2f   %.2f    %d   %s    %s \n',po_mid(1),po_mid(2),1,datestr(now),'V102');
+%         fprintf(fid_click,'%.2f   %.2f    %d   %s    %s \n',264,451,1,datestr(now),'F101');
 
         % first set all v?bh UserData to 0 == deactivate
         for iii = 1:1:number_var_alarms
@@ -1223,7 +1227,7 @@ function v15Fcn(hObject,eventdata,handles)
         calibration_step = 4; % User clicked button 4
         set(v15bh,'visible','off')
          set(v16bh,'visible','on')
-end
+    end
        
     % Calibration step 5 (center point) - Completes calibration sequence
 function v16Fcn(hObject,eventdata,handles)
@@ -1252,7 +1256,7 @@ function v16Fcn(hObject,eventdata,handles)
         te = toc(t_start_exp);
         
        fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',floor(te),(te-floor(te)),po_mid(1),po_mid(2),1,'close_trend_plot',0000);
-%         fprintf(fid_click,'%.2f    %.2f    %d   %s      %s \n',po_mid(1),po_mid(2),1,datestr(now),'Close_trend_plot');
+%         fprintf(fid_click,'%.2f    %.2f    %d   %s                     %s \n',po_mid(1),po_mid(2),1,datestr(now),'Close_trend_plot');
         for iii = 1:number_var_alarms
             %if iii ~= 10
             eval(sprintf('set(v%dbh,''UserData'',0);',iii));

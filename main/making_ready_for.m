@@ -1,4 +1,3 @@
-
 % =========================================================================
 % FUNCTION: making_ready_for
 % =========================================================================
@@ -19,7 +18,9 @@ function making_ready_for(task_no,fault_no_list,fault_no)
 % -------------------------------------------------------------------------
 
 % Declare global variables
-global task_name no_of_tasks sequence_task ty intro_file t_start_exp fid_click
+global task_name no_of_tasks ty intro_file t_start_exp fid_click
+global id_num
+global task_no_current
 
 % Add necessary paths
 addpath('data-collection');
@@ -27,10 +28,13 @@ addpath('gui');
 addpath('utils');
 addpath('monitoring');
 
+% Update global task number for display configuration
+task_no_current = task_no;
+
 % Verify file path is accessible
-fid_click = fopen('data/text-logs/Mouse_click.txt','wt+');
+fid_click = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'wt+');
 if fid_click == -1
-    error('Could not open Mouse_click.txt file. Check path and permissions.');
+    error('Could not open per-user Mouse_click file. Check path and permissions.');
 end
 fclose(fid_click); % Close initially, will reopen when needed
 
@@ -200,8 +204,8 @@ function start_make_call(varargin)
         
         % Log event to Mouse_click.txt
         te = toc(t_start_exp);
-        fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
-        fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+        fid_temp = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
+        fprintf(fid_temp,'%.0f     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
             floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
         fclose(fid_temp);
         
@@ -221,15 +225,15 @@ function start_next_task_call(varargin)
         
         % Log start time to Introduction.txt
         te = toc(t_start_exp);
-        intro_file = fopen('data\text-logs\Introduction.txt','at+');
+        intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'at+');
         fprintf(intro_file,'start_time task no: %d %d  %.6f \n',...
             task_no,floor(te),(te-floor(te)));
     end
     
     % Log event to Mouse_click.txt
     te = toc(t_start_exp);
-    fid_temp = fopen('data/text-logs/Mouse_click.txt','at+');
-    fprintf(fid_temp,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+    fid_temp = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
+    fprintf(fid_temp,'%.0f     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
         floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
     fclose(fid_temp);
     
@@ -255,8 +259,8 @@ function start_next_button_callback(varargin)
     te = toc(t_start_exp);
     
     % Log event to Mouse_click.txt
-    fid_click = fopen('data/text-logs/Mouse_click.txt','at+');
-    fprintf(fid_click,'%d     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+    fid_click = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
+    fprintf(fid_click,'%.0f     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
         floor(te),(te-floor(te)),0,0,1,'Start_next_task',0000);
     fclose(fid_click);
     

@@ -6,7 +6,7 @@ global f f2 fid fid_click esd_box fid_mouse_move  time_track_count time_track_fo
 global trackerId timeStampAll leftEyeAll rightEyeAll 
 
 global Ts ans_29  time_start_first count_completed alarm_upper_limit alarm_lower_limit alarm_var_store number_var_alarms
-global no_of_tasks sequence_task task_complete_flag es_flag
+global no_of_tasks task_complete_flag es_flag
 
 current_time_index ;
 % critic_with_noise is for flow rate from cstr to distillation column

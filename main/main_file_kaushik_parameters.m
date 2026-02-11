@@ -28,8 +28,9 @@ addpath('control');
 % SECTION 2: GLOBAL VARIABLE DECLARATIONS
 % -------------------------------------------------------------------------
 % clear alarm_var_store tag_for_plot
+global id_num
 global ans_pv_1 ans_pv_2 ans_pv_3 ans_pv_4 ans_pv_5 ans_pv_6 ans_pv_7 ans_pv_8 ans_pv_9 ans_pv_10 ans_pv_11 varTrend tic_start x_temp1
-global no_of_tasks es_flag task_complete_flag sequence_task
+global no_of_tasks es_flag task_complete_flag
 global intro_file leftEyeAll rightEyeAll timeStampAll
 global f f2 V102 V301 V401 V201 f_ref f2_ref
 global Start_Simu ans_11 ans_12 ans_13 ans_14
@@ -68,6 +69,7 @@ global time_for_process_var index_for_scenario
 global slider_var_store  % V102 V301 V201 V401 temp_flag
 global fault_prediction_text fault_prediction_axes
 global fault_prediction_history time_prediction_history
+global task_no_current  % Current task number for display configuration
 
 % -------------------------------------------------------------------------
 % SECTION 3: ALARM CONFIGURATION AND LABELS
@@ -81,7 +83,7 @@ alarm_var_tag_name = {'F101', 'F102', 'T101', 'T102', 'F105', 'T106', 'T105', 'T
 alarm_upper_limit = [0.95*1e3 200 40 35 0.95*(0.6482/0.7)*1.129623*1e3 80.4 89.5 100.5 33 ((1/18) - 0.0540)*1e3*1e3 (0.1858*1e3)/(1e2)];
 alarm_lower_limit = [0.55*1e3 80 0 15.2 0.55*(0.6482/0.7)*1.129623*1e3 78.5 86.5 98.5 29.5 ((1/18) - 0.0546)*1e3*1e3 0];
 
-intro_file = fopen('data\text-logs\Introduction.txt', 'at+');
+intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num), 'at+');
 
 description_of_alarms = {'Feed Flow Rate', 'Cooling Water Flow Rate', 'Cooling Water Temperature', 'Jacket Temperature', 'Flow rate to Distillation', 'Temperature of 3rd Tray', 'Temperature of 5th Tray', 'Temperature of 8th Tray', 'Temperature inside CSTR', 'Concentration of Ethanol', 'Level of CSTR'};
 s_deg = sprintf(' %cC', char(176));
@@ -601,7 +603,15 @@ while toc(tic_start) < time_duration_seconds % for defining how much long a scen
         time_for_process_var(i, 1:2) = [floor(time_temp) time_temp - floor(time_temp)];
         index_for_scenario = i;
         
-        % AI Fault Prediction - Call API endpoint
+        % =====================================================================
+        % SECTION: CONDITIONAL EXPLANATION DISPLAY BASED ON TASK NUMBER
+        % =====================================================================
+        % Task 1-2: Show "Message Not Available" in Explanation panel
+        % Task 3-4: Show alarms but "Message Not Available" in Explanation
+        % Task 5-6: Show Explanation but "Message Not Available" in Alarms
+        % Task 7:   Show both Alarms and Explanation (full functionality)
+        
+        % AI Fault Prediction - Call API endpoint (but conditionally display)
         try
             process_vars = alarm_var_store(1:number_var_alarms, i)';
             [predicted_fault, probabilities, confidence, explanation] = predict_fault_api(process_vars);
@@ -610,54 +620,118 @@ while toc(tic_start) < time_duration_seconds % for defining how much long a scen
             fault_prediction_history(end+1) = predicted_fault;
             time_prediction_history(end+1) = time_temp;
             
-            % Display in MATLAB command window
-            if predicted_fault == 0
-                % Normal operation - show centered green text only
-                normal_text = sprintf('\n\n\n\n\n    PROCESS NORMAL');
-                set(fault_prediction_text, 'String', normal_text);
-                set(fault_prediction_text, 'ForegroundColor', [0 0.6 0]); % Green color
-                set(fault_prediction_text, 'FontSize', 16);
+            % Determine what to display based on current task number
+            if task_no_current <= 2
+                % TASKS 1-2: Show "Not Available"
+                unavailable_text = 'Not Available';
+                set(fault_prediction_text, 'String', unavailable_text);
+                set(fault_prediction_text, 'ForegroundColor', [0.5 0.5 0.5]); % Gray color
+                set(fault_prediction_text, 'FontSize', 14);
                 set(fault_prediction_text, 'HorizontalAlignment', 'center');
-                fprintf('[Time: %.2fs] AI Prediction: Normal Operation | Confidence: %.3f\n', ...
-                        time_temp, confidence);
-            else
-                % Fault detected - show fault name and top 3 variables with human-readable names
-                fault_name = get_fault_name(predicted_fault);
+                set(fault_prediction_text, 'Position', [0.03 0.45 0.94 0.1]);
                 
-                % Mapping of variable codes to human-readable names
-                var_names = containers.Map(...
-                    {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
-                     'T102_JacketTemp_C', 'T103_CSTRTemp_C', 'C101_EthanolConc_molL', ...
-                     'L101_CSTRLevel_m', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
-                     'T105_Tray5Temp_C', 'T104_Tray8Temp_C'}, ...
-                    {'Reactor Feed Flow (F101)', 'Reactor Coolant Flow (F102)', 'Reactor Coolant Temperature (T101)', ...
-                     'Reactor Jacket Temperature (T102)', 'Reactor Temperature (T103)', 'Reactor Concentration (C101)', ...
-                     'Reactor Level (L101)', 'Distillation Feed Flow (F105)', 'Tray 3 Temperature (T106)', ...
-                     'Tray 5 Temperature (T105)', 'Tray 8 Temperature (T104)'});
+            elseif task_no_current >= 3 && task_no_current <= 4
+                % TASKS 3-4: Show "Not Available" (alarms are shown separately)
+                unavailable_text = 'Not Available';
+                set(fault_prediction_text, 'String', unavailable_text);
+                set(fault_prediction_text, 'ForegroundColor', [0.5 0.5 0.5]); % Gray color
+                set(fault_prediction_text, 'FontSize', 14);
+                set(fault_prediction_text, 'HorizontalAlignment', 'center');
+                set(fault_prediction_text, 'Position', [0.03 0.45 0.94 0.1]);
                 
-                % Build formatted text with fault name only
-                fault_text = sprintf('%s\n', fault_name);
-                fault_text = sprintf('%s═══════════════════════════\n', fault_text);
-                
-                if isfield(explanation, 'top_features') && ~isempty(explanation.top_features)
-                    top_3 = explanation.top_features(1:min(3, length(explanation.top_features)));
-                    for j = 1:length(top_3)
-                        feature_code = top_3(j).feature;
-                        % Get human-readable name, fallback to original if not in map
-                        if isKey(var_names, feature_code)
-                            feature_name = var_names(feature_code);
-                        else
-                            feature_name = feature_code;
+            elseif task_no_current >= 5 && task_no_current <= 6
+                % TASKS 5-6: Show actual explanation (but no alarms)
+                if predicted_fault == 0
+                    % Normal operation
+                    normal_text = sprintf('\n\n\n\n\n    PROCESS NORMAL');
+                    set(fault_prediction_text, 'String', normal_text);
+                    set(fault_prediction_text, 'ForegroundColor', [0 0.6 0]); % Green color
+                    set(fault_prediction_text, 'FontSize', 16);
+                    set(fault_prediction_text, 'HorizontalAlignment', 'center');
+                else
+                    % Fault detected
+                    fault_name = get_fault_name(predicted_fault);
+                    var_names = containers.Map(...
+                        {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
+                         'T102_JacketTemp_C', 'T103_CSTRTemp_C', 'C101_EthanolConc_molL', ...
+                         'L101_CSTRLevel_m', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
+                         'T105_Tray5Temp_C', 'T104_Tray8Temp_C'}, ...
+                        {'Reactor Feed Flow (F101)', 'Reactor Coolant Flow (F102)', 'Reactor Coolant Temperature (T101)', ...
+                         'Reactor Jacket Temperature (T102)', 'Reactor Temperature (T103)', 'Reactor Concentration (C101)', ...
+                         'Reactor Level (L101)', 'Distillation Feed Flow (F105)', 'Tray 3 Temperature (T106)', ...
+                         'Tray 5 Temperature (T105)', 'Tray 8 Temperature (T104)'});
+                    
+                    fault_text = sprintf('%s\n', fault_name);
+                    fault_text = sprintf('%s═══════════════════════════\n', fault_text);
+                    
+                    if isfield(explanation, 'top_features') && ~isempty(explanation.top_features)
+                        top_3 = explanation.top_features(1:min(3, length(explanation.top_features)));
+                        for j = 1:length(top_3)
+                            feature_code = top_3(j).feature;
+                            if isKey(var_names, feature_code)
+                                feature_name = var_names(feature_code);
+                            else
+                                feature_name = feature_code;
+                            end
+                            fault_text = sprintf('%s\n%d. %s', fault_text, j, feature_name);
                         end
-                        fault_text = sprintf('%s\n%d. %s', fault_text, j, feature_name);
                     end
+                    
+                    set(fault_prediction_text, 'String', fault_text);
+                    set(fault_prediction_text, 'ForegroundColor', [0.545 0.271 0.075]); % Brown color
+                    set(fault_prediction_text, 'FontSize', 12);
                 end
                 
-                set(fault_prediction_text, 'String', fault_text);
-                set(fault_prediction_text, 'ForegroundColor', [0.545 0.271 0.075]); % Brown color
-                set(fault_prediction_text, 'FontSize', 12);
-                fprintf('[Time: %.2fs] AI Prediction: %s | Confidence: %.3f\n', ...
-                        time_temp, fault_name, confidence);
+            else % task_no_current == 7
+                % TASK 7: Show both alarms and full explanation (full functionality)
+                if predicted_fault == 0
+                    % Normal operation - show centered green text only
+                    normal_text = sprintf('\n\n\n\n\n    PROCESS NORMAL');
+                    set(fault_prediction_text, 'String', normal_text);
+                    set(fault_prediction_text, 'ForegroundColor', [0 0.6 0]); % Green color
+                    set(fault_prediction_text, 'FontSize', 16);
+                    set(fault_prediction_text, 'HorizontalAlignment', 'center');
+                    fprintf('[Time: %.2fs] AI Prediction: Normal Operation | Confidence: %.3f\n', ...
+                            time_temp, confidence);
+                else
+                    % Fault detected - show fault name and top 3 variables with human-readable names
+                    fault_name = get_fault_name(predicted_fault);
+                    
+                    % Mapping of variable codes to human-readable names
+                    var_names = containers.Map(...
+                        {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
+                         'T102_JacketTemp_C', 'T103_CSTRTemp_C', 'C101_EthanolConc_molL', ...
+                         'L101_CSTRLevel_m', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
+                         'T105_Tray5Temp_C', 'T104_Tray8Temp_C'}, ...
+                        {'Reactor Feed Flow (F101)', 'Reactor Coolant Flow (F102)', 'Reactor Coolant Temperature (T101)', ...
+                         'Reactor Jacket Temperature (T102)', 'Reactor Temperature (T103)', 'Reactor Concentration (C101)', ...
+                         'Reactor Level (L101)', 'Distillation Feed Flow (F105)', 'Tray 3 Temperature (T106)', ...
+                         'Tray 5 Temperature (T105)', 'Tray 8 Temperature (T104)'});
+                    
+                    % Build formatted text with fault name only
+                    fault_text = sprintf('%s\n', fault_name);
+                    fault_text = sprintf('%s═══════════════════════════\n', fault_text);
+                    
+                    if isfield(explanation, 'top_features') && ~isempty(explanation.top_features)
+                        top_3 = explanation.top_features(1:min(3, length(explanation.top_features)));
+                        for j = 1:length(top_3)
+                            feature_code = top_3(j).feature;
+                            % Get human-readable name, fallback to original if not in map
+                            if isKey(var_names, feature_code)
+                                feature_name = var_names(feature_code);
+                            else
+                                feature_name = feature_code;
+                            end
+                            fault_text = sprintf('%s\n%d. %s', fault_text, j, feature_name);
+                        end
+                    end
+                    
+                    set(fault_prediction_text, 'String', fault_text);
+                    set(fault_prediction_text, 'ForegroundColor', [0.545 0.271 0.075]); % Brown color
+                    set(fault_prediction_text, 'FontSize', 12);
+                    fprintf('[Time: %.2fs] AI Prediction: %s | Confidence: %.3f\n', ...
+                            time_temp, fault_name, confidence);
+                end
             end
         catch ME
             % If prediction fails, just continue without crashing
@@ -796,7 +870,7 @@ if es_flag ~= 1 || task_complete_flag ~= 1
     close(f);
     close(f2);
 
-    [a_c, b_c, c_c, d_c, e_c, f_c, g_c] = textread('data\text-logs\Mouse_click.txt', '%s %s %s %s %s %s %s', 'whitespace', ' ', 'bufsize', 10000);
+    [a_c, b_c, c_c, d_c, e_c, f_c, g_c] = textread(sprintf('data\\text-logs\\Mouse_click_%s.txt', id_num), '%s %s %s %s %s %s %s', 'whitespace', ' ', 'bufsize', 10000);
     ty = time_start_first;
     ty([12 15 18]) = '_';
     global id_num;
@@ -806,7 +880,7 @@ if es_flag ~= 1 || task_complete_flag ~= 1
 
     fclose(fid_click);
     %-------------------------------alarm timing0----------------------
-    [a_a, b_a, c_a] = textread('data\text-logs\alarm_timing.txt', '%s %s %s', 'whitespace', ' ', 'bufsize', 10000);
+    [a_a, b_a, c_a] = textread(sprintf('data\\text-logs\\alarm_timing_%s.txt', id_num), '%s %s %s', 'whitespace', ' ', 'bufsize', 10000);
     ty = time_start_first;
     ty([12 15 18]) = '_';
     if ~isempty(a_a) && ~isempty(b_a) && ~isempty(c_a)
@@ -819,7 +893,7 @@ if es_flag ~= 1 || task_complete_flag ~= 1
     ty([12 15 18]) = '_';
     eval(sprintf('xlswrite(''data/excel-outputs/Process_data_%s_%s.xlsx'',process_var_store,%d);', id_num, ty, task_no));
 
-    [a_c, b_c, c_c, d_c, e_c, f_c] = textread('data\text-logs\task_no.txt', '%s %s %s %s %s %s', 'whitespace', ' ', 'bufsize', 10000);
+    [a_c, b_c, c_c, d_c, e_c, f_c] = textread(sprintf('data\\text-logs\\task_no_%s.txt', id_num), '%s %s %s %s %s %s', 'whitespace', ' ', 'bufsize', 10000);
     ty = time_start_first;
     ty([12 15 18]) = '_';
     if ~isempty(a_c) && ~isempty(b_c) && ~isempty(c_c) && ~isempty(d_c) && ~isempty(e_c) && ~isempty(f_c)
