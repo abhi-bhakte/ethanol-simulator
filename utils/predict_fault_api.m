@@ -5,9 +5,12 @@
 %          Uses HTTP requests instead of Python integration.
 %
 % Inputs:
-%   process_vars - Array of 11 process variables in order:
-%                  [F101, F102, T101, T102, F105, T106, T105, T104, T103, C101, L101]
-%   api_url      - (Optional) API URL. Default: 'http://127.0.0.1:5000/predict'
+%   process_vars     - Array of 11 process variables in order:
+%                      [F101, F102, T101, T102, F105, T106, T105, T104, T103, C101, L101]
+%   api_url          - (Optional) API URL. Default: 'http://127.0.0.1:5000/predict'
+%   include_llm      - (Optional) true/false to request LLM interpretation. Default: false
+%   process_context  - (Optional) context string for LLM interpretation
+%   include_ig       - (Optional) true/false to request IG attributions. Default: true
 %
 % Outputs:
 %   fault_label   - Predicted fault number (0 = normal, 1-12 = fault case)
@@ -21,10 +24,23 @@
 %
 % =========================================================================
 
-function [fault_label, probabilities, confidence, explanation] = predict_fault_api(process_vars, api_url)
+function [fault_label, probabilities, confidence, explanation] = predict_fault_api(process_vars, api_url, include_llm, process_context, include_ig)
     % Default API endpoint
     if nargin < 2
         api_url = 'http://127.0.0.1:5000/predict';
+    end
+
+    % Default optional LLM controls
+    if nargin < 3
+        include_llm = false;
+    end
+
+    if nargin < 4
+        process_context = '';
+    end
+
+    if nargin < 5
+        include_ig = true;
     end
     
     % Validate input
@@ -37,7 +53,15 @@ function [fault_label, probabilities, confidence, explanation] = predict_fault_a
     
     try
         % Prepare JSON data
-        data = struct('features', process_vars(:)');  % Ensure row vector
+        data = struct( ...
+            'features', process_vars(:)', ...      % Ensure row vector
+            'include_llm', logical(include_llm), ...
+            'include_ig', logical(include_ig));
+
+        if ~isempty(process_context)
+            data.process_context = process_context;
+        end
+
         json_data = jsonencode(data);
         
         % Configure HTTP options

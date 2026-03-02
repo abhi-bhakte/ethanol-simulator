@@ -43,6 +43,7 @@ global fid fid_click fault_time count_completed auto_matic_shutdown
 global es_flag task_complete_flag no_of_tasks tasks id_num
 global task fid_alarm_timing calibration_completed calibration_step
 global task_no_current  % Track current task number for display configuration
+global condition_mode   % 1=baseline, 2=quantitative, 3=LLM descriptive
 
 % -------------------------------------------------------------------------
 % SECTION 3: FILE HANDLERS INITIALIZATION
@@ -55,10 +56,8 @@ calibration_step = 0;
 % Initialize current task number (will be updated for each task)
 task_no_current = 1;
 
-% Open log files for data recording
-fid_click = fopen(sprintf('data\\text-logs\\Mouse_click_%s.txt', id_num),'wt+'); % per-user mouse click log
-fid_alarm_timing = fopen(sprintf('data\\text-logs\\alarm_timing_%s.txt', id_num),'wt+'); % per-user alarm timing log
-intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'wt+');
+% Initialize condition mode (will be updated per task automatically)
+condition_mode = 1;
 
 % Initialize experiment state flags
 count_completed = 0;
@@ -74,22 +73,44 @@ disp('================================================Welcome===================
 % Collect participant identifier (roll number)
 id_num = input('Please Enter Your roll Number: ','s');
 
+% Open log files for data recording (per participant)
+fid_click = fopen(sprintf('data\\text-logs\\Mouse_click_%s.txt', id_num),'wt+'); % per-user mouse click log
+fid_alarm_timing = fopen(sprintf('data\\text-logs\\alarm_timing_%s.txt', id_num),'wt+'); % per-user alarm timing log
+intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'wt+');
+
 % Log participant ID to introduction file
 fprintf(intro_file,'\nID No: = %s \n',id_num);
+fprintf(intro_file,'\nCondition order: fixed 1(Baseline)->2(Quantitative)->3(LLM) \n');
 
 % -------------------------------------------------------------------------
 % SECTION 5: EXPERIMENT CONFIGURATION
 % -------------------------------------------------------------------------
 
 % Define experiment parameterssequence_task
-no_of_tasks = 7;              % Total number of tasks
+% FAST TEST CONFIG:
+%  - 3 conditions in fixed order (baseline -> quantitative -> LLM)
+%  - 5 tasks per condition (2 fixed test + 3 randomized analysis)
+%  - Total tasks = 15
+no_of_tasks = 15;             % Total number of tasks (5 per condition x 3 conditions)
 task_no = 1;                  % Start with first task
-no_of_faults = 7;             % Number of fault scenarios
+no_of_faults = 15;            % Number of fault scenarios (tasks)
 
-% Define allowed faults and randomize the sequence for this session
-allowed_faults = [1 3 4 5 7 8 10];
-idx = randperm(numel(allowed_faults), no_of_tasks);
-fault_no_list = allowed_faults(idx);   % randomized unique faults for tasks
+% Fault schedule per condition (5 tasks each):
+%   Task 1: test fault (always Fault 1)
+%   Task 2: test fault (always Fault 5)
+%   Task 3-5: analysis faults (3 random from analysis_pool)
+training_faults = [1 5];
+analysis_pool = [3 4 7 8 10];
+
+fault_no_list = [];
+for cond_i = 1:3
+	pool_idx = randperm(numel(analysis_pool));
+	analysis_faults = analysis_pool(pool_idx(1:3));
+	fault_no_list = [fault_no_list training_faults analysis_faults];
+end
+
+% Allowed fault types in this study (for timing/logging)
+allowed_faults = unique(fault_no_list);
 fault_no = fault_no_list(task_no);     % Get fault for current task
 
 % Define task execution sequence (same as randomized fault order for logging)
@@ -104,12 +125,13 @@ fprintf(intro_file,'\nsequence of task: = %s \n',num2str(sequence_task));
 % -------------------------------------------------------------------------
 
 % Generate random numbers for potential timing variations
-rand_num = randi([15 20], 1, no_of_tasks);
+rand_num = randi([15 20], 1, numel(allowed_faults));
 
 % Define fault occurrence timing (in seconds) for each task
 % Randomize each task fault time between 15 and 20 seconds (inclusive)
 fault_time = 1000 * ones(1, 12);
 
+% Apply randomized fault timings only for faults used in this session
 fault_time(allowed_faults) = rand_num;
 
 % Log randomized fault timings to introduction file

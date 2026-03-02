@@ -21,6 +21,8 @@ function making_ready_for(task_no,fault_no_list,fault_no)
 global task_name no_of_tasks ty intro_file t_start_exp fid_click
 global id_num
 global task_no_current
+global condition_mode
+global calibration_completed
 
 % Add necessary paths
 addpath('data-collection');
@@ -30,6 +32,23 @@ addpath('monitoring');
 
 % Update global task number for display configuration
 task_no_current = task_no;
+
+% -------------------------------------------------------------------------
+% CONDITION ORDER CONFIG
+% -------------------------------------------------------------------------
+% Edit this list to change the condition sequence.
+% 1 = Baseline, 2 = Quantitative, 3 = LLM
+condition_order = [1 2 3]; % Example: Baseline first, then Quantitative, then LLM
+
+% Tasks per condition (full study = 5)
+tasks_per_condition = 5;
+
+% Compute condition mode for this task based on the configured order
+condition_index = ceil(task_no / tasks_per_condition);
+condition_index = min(max(condition_index, 1), numel(condition_order));
+condition_mode = condition_order(condition_index);
+
+needs_calibration = (task_no == 1) && (isempty(calibration_completed) || ~calibration_completed);
 
 % Verify file path is accessible
 fid_click = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'wt+');
@@ -72,7 +91,7 @@ movegui(f_finish,'center');
 task_description = 'Maintain the ethanol plant at normal operating conditions with all variables within specified limits';
 
 % Create task names array - all tasks have the same objective
-task_name = repmat({task_description}, 1, 9);
+task_name = repmat({task_description}, 1, no_of_tasks);
 
 % -------------------------------------------------------------------------
 % SECTION 4: UI CONTROLS - INSTRUCTION WINDOW (f_mess)
@@ -116,11 +135,11 @@ imshow(imgCircular, 'Parent', ax);
 axis(ax, 'off');
 axis(ax, 'equal');
 
-% Instruction text
 Start_string = sprintf(['YOUR TASK:\n• Keep the ethanol plant operating normally\n'...
     '• All variables must stay WITHIN RANGE\n\n'...
     'WHEN AN ALARM OCCURS:\n• You will hear a BEEP sound\n'...
-    '• A variable will CHANGE COLOR (red)\n• You have 2 MINUTES to restore normal operation\n\n']);
+    '• A variable will CHANGE COLOR (red)\n• You have 2 MINUTES to restore normal operation\n\n'...
+    ]);
 
 mess_fow = uicontrol(f_mess,'Style','text','HorizontalAlignment','left','Units','Points',...
     'Position',[15,90,320,130],'String',Start_string,'backgroundcolor',.9.*[1 1 1],...
@@ -136,7 +155,13 @@ start_make = uicontrol(f_mess,'Style','pushbutton','String','Next','Units','poin
 
 % Task message display
 task_mess = uicontrol(f_task,'Style','text','Units','Points','Position',[20,200,310,120],...
-    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',13,'fontweight','bold');
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',13,'fontweight','bold',...
+    'HorizontalAlignment','center');
+
+% Condition line (shown only at condition start)
+condition_mess = uicontrol(f_task,'Style','text','Units','Points','Position',[20,175,310,25],...
+    'backgroundcolor',.9.*[1 1 1],'foregroundcolor',[0 0 0],'fontsize',12,'fontweight','bold',...
+    'HorizontalAlignment','center','String','');
 
 % Finish button
 finish_button = uicontrol(f_task,'Style','pushbutton','String','Finish','Units','points',...
@@ -168,15 +193,32 @@ end
 
 % Control window visibility based on task progress
 if task_no <= no_of_tasks    
-    if task_no == 1
-        % First task: show instruction window
+    % Task 1 sequence: Operating details -> Calibration -> Task Introduction
+    if task_no == 1 && needs_calibration
+        % Show Operating details and Goal first
         set(f_mess,'visible','on');
         set(start_make,'visible','on');
         clc;
+    elseif task_no == 1
+        % After calibration: show Task Introduction window for task 1
+        set(f_task,'visible','on');
+        set(next_task,'visible','off');
+        set(start_next_task,'visible','on');
+        if condition_mode == 1
+            condition_line = 'Decision Support: No Decision Support';
+        elseif condition_mode == 2
+            condition_line = 'Decision Support: Quantitative Feature Explanations';
+        else
+            condition_line = 'Decision Support: LLM Descriptive Explanations';
+        end
+        set(task_mess,'String',task_description);
+        set(condition_mess,'String',condition_line);
+        clc;
     else
-        % Subsequent tasks: show task completion message
+        % Between tasks: show task completion message
         set(f_task,'visible','on');
         eval(sprintf('set(task_mess,''String'',''End of task %d.  Press Next button to start next task'');',task_no - 1));
+        set(condition_mess,'String','');
         set(start_next_task,'visible','off');
         set(next_task,'visible','on');
         clc;
@@ -185,6 +227,7 @@ else
     % All tasks completed: show finish screen
     set(f_task,'visible','on');
     set(task_mess,'String','You have completed all the task. Press finish to fill up the feedback form.');
+    set(condition_mess,'String','');
     set(start_next_task,'visible','off');
     set(finish_button,'visible','on');
 end
@@ -195,22 +238,14 @@ end
 
 % -------------------------------------------------------------------------
 % Callback: start_make_call
-% Triggered when user clicks "Next" on instruction window (first task)
+% Triggered when user clicks "Next" on instruction window (at condition start)
 % -------------------------------------------------------------------------
 function start_make_call(varargin)
-    if task_no == 1
-        close(f_mess);
-        t_start_exp = tic;
-        
-        % Log event to Mouse_click.txt
-        te = toc(t_start_exp);
-        fid_temp = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
-        fprintf(fid_temp,'%.0f     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
-            floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
-        fclose(fid_temp);
-        
-        % Launch GUI for the task
+    close(f_mess);
+    % After Operating details, run calibration for task 1 (if pending)
+    if task_no == 1 && (isempty(calibration_completed) || ~calibration_completed)
         gui_changed_color(task_no,fault_no_list,fault_no);
+        return;
     end
 end
 
@@ -219,34 +254,33 @@ end
 % Triggered when user clicks "Next" button between tasks
 % -------------------------------------------------------------------------
 function start_next_task_call(varargin)
-    if task_no == 1
-        close(f_mess);
-        set(f_task,'visible','on')
-        
-        % Log start time to Introduction.txt
-        te = toc(t_start_exp);
-        intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'at+');
-        fprintf(intro_file,'start_time task no: %d %d  %.6f \n',...
-            task_no,floor(te),(te-floor(te)));
-    end
-    
-    % Log event to Mouse_click.txt
-    te = toc(t_start_exp);
-    fid_temp = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
-    fprintf(fid_temp,'%.0f     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
-        floor(te),(te-floor(te)),0,0,1,'Ready_next_task',0000);
-    fclose(fid_temp);
-    
-    % Update UI for next task
-    set(next_task,'visible','off');
-    set(start_next_task,'visible','on');
-    
-    % Set task message based on fault number using index mapping
-    fault_to_index = containers.Map([1, 3, 4, 5, 7, 8, 10, 2, 6], 1:9);
-    if isKey(fault_to_index, fault_no)
-        set(task_mess,'String',task_name(fault_to_index(fault_no)));
+    % Condition-start tasks show Task Introduction;
+    % otherwise start the next task immediately.
+    is_condition_start = (mod(task_no - 1, tasks_per_condition) == 0);
+
+    if is_condition_start
+        set(next_task,'visible','off');
+        set(start_next_task,'visible','on');
+
+        if condition_mode == 1
+            condition_line = 'BASELINE: Manual monitoring only';
+        elseif condition_mode == 2
+            condition_line = 'QUANTITATIVE: AI feature explanations';
+        else
+            condition_line = 'LLM: AI descriptive explanations';
+        end
+        set(task_mess,'String',task_description);
+        set(condition_mess,'String',condition_line);
     else
-        set(task_mess,'String','Unknown task');
+        % Start task immediately (skip Task Introduction popup)
+        set(f_task,'visible','off');
+        set(condition_mess,'String','');
+        te = toc(t_start_exp);
+        fid_click = fopen(sprintf('data/text-logs/Mouse_click_%s.txt', id_num),'at+');
+        fprintf(fid_click,'%.0f     %.6f  %.2f   %.2f    %d   %s %.2f\n',...
+            floor(te),(te-floor(te)),0,0,1,'Start_next_task',0000);
+        fclose(fid_click);
+        gui_changed_color(task_no,fault_no_list,fault_no);
     end
 end
 
@@ -256,6 +290,16 @@ end
 % -------------------------------------------------------------------------
 function start_next_button_callback(varargin)
     set(f_task,'visible','off');
+    if task_no == 1
+        t_start_exp = tic;
+
+        % Log start time to Introduction.txt
+        intro_file = fopen(sprintf('data\\text-logs\\Introduction_%s.txt', id_num),'at+');
+        te = toc(t_start_exp);
+        fprintf(intro_file,'start_time task no: %d %d  %.6f \n',...
+            task_no,floor(te),(te-floor(te)));
+        fclose(intro_file);
+    end
     te = toc(t_start_exp);
     
     % Log event to Mouse_click.txt

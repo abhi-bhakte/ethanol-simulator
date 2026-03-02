@@ -68,8 +68,11 @@ global flag_flow_distill flag_for_reflux
 global time_for_process_var index_for_scenario
 global slider_var_store  % V102 V301 V201 V401 temp_flag
 global fault_prediction_text fault_prediction_axes
+global fault_consequence_label fault_consequence_text
+global fault_action_label fault_action_text
 global fault_prediction_history time_prediction_history
 global task_no_current  % Current task number for display configuration
+global condition_mode   % 1=baseline, 2=quantitative, 3=LLM descriptive
 
 % -------------------------------------------------------------------------
 % SECTION 3: ALARM CONFIGURATION AND LABELS
@@ -604,66 +607,412 @@ while toc(tic_start) < time_duration_seconds % for defining how much long a scen
         index_for_scenario = i;
         
         % =====================================================================
-        % SECTION: CONDITIONAL EXPLANATION DISPLAY BASED ON TASK NUMBER
+        % SECTION: DECISION SUPPORT (CONDITION-BASED)
         % =====================================================================
-        % Task 1-2: Show "Message Not Available" in Explanation panel
-        % Task 3-4: Show alarms but "Message Not Available" in Explanation
-        % Task 5-6: Show Explanation but "Message Not Available" in Alarms
-        % Task 7:   Show both Alarms and Explanation (full functionality)
+        % condition_mode:
+        %   1 = Baseline (no ML / no explanations)
+        %   2 = Quantitative (ML + IG top-features)
+        %   3 = Descriptive (ML + IG + LLM interpretation)
         
-        % AI Fault Prediction - Call API endpoint (but conditionally display)
+        % AI Fault Prediction - Throttled API calls to keep GUI realtime
         try
+            if isempty(condition_mode)
+                condition_mode = 1;
+            end
+
+            if condition_mode == 1
+                % Baseline: keep panel empty and skip all API calls
+                if ~exist('ai_baseline_ui_set', 'var') || ~ai_baseline_ui_set
+                    not_available_text = sprintf('\n\n\n\n\n    NOT AVAILABLE');
+                    set(fault_prediction_axes, 'String', '', 'Visible', 'off');
+                    set(fault_prediction_text, 'Position', [0.03 0.15 0.94 0.77]);
+                    wrapped_text = textwrap(fault_prediction_text, {not_available_text});
+                    set(fault_prediction_text, 'String', wrapped_text);
+                    set(fault_prediction_text, 'ForegroundColor', [0.35 0.35 0.35]); % Dark gray
+                    set(fault_prediction_text, 'FontSize', 14);
+                    set(fault_prediction_text, 'HorizontalAlignment', 'center');
+                    set(fault_consequence_label, 'Visible', 'off');
+                    set(fault_consequence_text, 'String', '', 'Visible', 'off');
+                    set(fault_action_label, 'Visible', 'off');
+                    set(fault_action_text, 'String', '', 'Visible', 'off');
+                    ai_baseline_ui_set = true;
+                end
+            else
+
             process_vars = alarm_var_store(1:number_var_alarms, i)';
-            [predicted_fault, probabilities, confidence, explanation] = predict_fault_api(process_vars);
-            
-            % Store prediction history
-            fault_prediction_history(end+1) = predicted_fault;
-            time_prediction_history(end+1) = time_temp;
-            
-            % Determine what to display based on current task number
-            if task_no_current <= 2
-                % TASKS 1-2: Show "Not Available"
-                unavailable_text = 'Not Available';
-                set(fault_prediction_text, 'String', unavailable_text);
-                set(fault_prediction_text, 'ForegroundColor', [0.5 0.5 0.5]); % Gray color
-                set(fault_prediction_text, 'FontSize', 14);
-                set(fault_prediction_text, 'HorizontalAlignment', 'center');
-                set(fault_prediction_text, 'Position', [0.03 0.45 0.94 0.1]);
-                
-            elseif task_no_current >= 3 && task_no_current <= 4
-                % TASKS 3-4: Show "Not Available" (alarms are shown separately)
-                unavailable_text = 'Not Available';
-                set(fault_prediction_text, 'String', unavailable_text);
-                set(fault_prediction_text, 'ForegroundColor', [0.5 0.5 0.5]); % Gray color
-                set(fault_prediction_text, 'FontSize', 14);
-                set(fault_prediction_text, 'HorizontalAlignment', 'center');
-                set(fault_prediction_text, 'Position', [0.03 0.45 0.94 0.1]);
-                
-            elseif task_no_current >= 5 && task_no_current <= 6
-                % TASKS 5-6: Show actual explanation (but no alarms)
-                if predicted_fault == 0
-                    % Normal operation
-                    normal_text = sprintf('\n\n\n\n\n    PROCESS NORMAL');
-                    set(fault_prediction_text, 'String', normal_text);
-                    set(fault_prediction_text, 'ForegroundColor', [0 0.6 0]); % Green color
-                    set(fault_prediction_text, 'FontSize', 16);
-                    set(fault_prediction_text, 'HorizontalAlignment', 'center');
+
+            % Throttle settings (seconds) - tune these if needed
+            if ~exist('ai_pred_interval_s', 'var'); ai_pred_interval_s = 0.5; end
+            if ~exist('ai_explain_interval_s', 'var'); ai_explain_interval_s = 15.0; end
+            if ~exist('ai_llm_interval_s', 'var'); ai_llm_interval_s = 10.0; end
+
+            % Cached state
+            if ~exist('ai_last_pred_time', 'var'); ai_last_pred_time = -inf; end
+            if ~exist('ai_last_explain_time', 'var'); ai_last_explain_time = -inf; end
+            if ~exist('ai_last_explain_fault', 'var'); ai_last_explain_fault = -1; end
+            if ~exist('ai_last_explain_top_vars_key', 'var'); ai_last_explain_top_vars_key = ''; end
+            if ~exist('ai_last_llm_time', 'var'); ai_last_llm_time = -inf; end
+            if ~exist('ai_cached_predicted_fault', 'var'); ai_cached_predicted_fault = 0; end
+            if ~exist('ai_cached_probabilities', 'var'); ai_cached_probabilities = []; end
+            if ~exist('ai_cached_confidence', 'var'); ai_cached_confidence = 0; end
+            if ~exist('ai_cached_explanation', 'var'); ai_cached_explanation = struct(); end
+            if ~exist('ai_cached_llm_text', 'var'); ai_cached_llm_text = ''; end
+            if ~exist('ai_cached_cons_text', 'var'); ai_cached_cons_text = ''; end
+            if ~exist('ai_cached_corr_text', 'var'); ai_cached_corr_text = ''; end
+            if ~exist('ai_pred_future', 'var'); ai_pred_future = []; end
+            if ~exist('ai_pred_inflight', 'var'); ai_pred_inflight = false; end
+            if ~exist('ai_llm_future', 'var'); ai_llm_future = []; end
+            if ~exist('ai_llm_inflight', 'var'); ai_llm_inflight = false; end
+            if ~exist('ai_llm_request_includes_llm', 'var'); ai_llm_request_includes_llm = false; end
+
+            llm_process_context = [...
+                'Plant context: CSTR reactor followed by distillation column. Main process direction is reactor to distillation. ' ...
+                'Variable order: F101,F102,T101,T102,T103,C101,L101,F105,T106,T105,T104. ' ...
+                'Reactor-side variables: F101,F102,T101,T102,T103,C101,L101. Column-side variables: F105,T106,T105,T104,reflux(V401). ' ...
+                'Locality rule: first explain the unit where top features are present. Do not claim reactor feed cause if evidence is only tray/reflux variables. ' ...
+                'Propagation rule: downstream impact can be mentioned only when upstream variables also show deviation. Do not force upstream causes from downstream-only evidence. ' ...
+                'Feed behavior: F101/F105 down can reduce throughput and upset composition/separation. F101/F105 up can increase loading and control difficulty. ' ...
+                'Cooling behavior: F102 down or T102/T103 up indicates weaker cooling and hot-reactor risk. F102 up or T102/T103 down indicates stronger cooling and cold-reactor risk. ' ...
+                'Reflux behavior: use T106/T105/T104 as primary indicators. High reflux typically raises tray temperatures and shifts profile; low reflux typically lowers tray temperatures and shifts profile. For reflux faults, keep effects in distillation unit unless reactor variables are also top features. ' ...
+                'Fault map: Reflux Valve Set High/Low -> column tray-profile and separation effects first. Coolant faults -> reactor thermal effects first. Feed faults -> throughput/loading/composition effects first. ' ...
+                'Action map: feed->V102, coolant->V301, distillation feed->V201, reflux->V401. ' ...
+                'Effects text must contain plant impact only and must not include action verbs or valve tags. Corrective action must contain operator steps only and may include valve tags. ' ...
+                'If evidence is mixed, state uncertainty and ask operator to watch trend.' ...
+            ];
+            feature_codes = {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
+                             'T102_JacketTemp_C', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
+                             'T105_Tray5Temp_C', 'T104_Tray8Temp_C', 'T103_CSTRTemp_C', ...
+                             'C101_EthanolConc_molL', 'L101_CSTRLevel_m'};
+            var_names = containers.Map(...
+                {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
+                 'T102_JacketTemp_C', 'T103_CSTRTemp_C', 'C101_EthanolConc_molL', ...
+                 'L101_CSTRLevel_m', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
+                 'T105_Tray5Temp_C', 'T104_Tray8Temp_C'}, ...
+                {'Reactor Feed Flow (F101)', 'Reactor Coolant Flow (F102)', 'Reactor Coolant Temperature (T101)', ...
+                 'Reactor Jacket Temperature (T102)', 'Reactor Temperature (T103)', 'Reactor Concentration (C101)', ...
+                 'Reactor Level (L101)', 'Distillation Feed Flow (F105)', 'Tray 3 Temperature (T106)', ...
+                 'Tray 5 Temperature (T105)', 'Tray 8 Temperature (T104)'});
+            alarm_status_labels = cell(1, number_var_alarms);
+            for k = 1:number_var_alarms
+                if alarm_var_store(k, i) > alarm_upper_limit(k)
+                    status_word = 'increased';
+                    percent_away = ((alarm_var_store(k, i) - alarm_upper_limit(k)) / alarm_upper_limit(k)) * 100;
+                elseif alarm_var_store(k, i) < alarm_lower_limit(k)
+                    status_word = 'decreased';
+                    percent_away = ((alarm_lower_limit(k) - alarm_var_store(k, i)) / alarm_lower_limit(k)) * 100;
                 else
-                    % Fault detected
-                    fault_name = get_fault_name(predicted_fault);
-                    var_names = containers.Map(...
-                        {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
-                         'T102_JacketTemp_C', 'T103_CSTRTemp_C', 'C101_EthanolConc_molL', ...
-                         'L101_CSTRLevel_m', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
-                         'T105_Tray5Temp_C', 'T104_Tray8Temp_C'}, ...
-                        {'Reactor Feed Flow (F101)', 'Reactor Coolant Flow (F102)', 'Reactor Coolant Temperature (T101)', ...
-                         'Reactor Jacket Temperature (T102)', 'Reactor Temperature (T103)', 'Reactor Concentration (C101)', ...
-                         'Reactor Level (L101)', 'Distillation Feed Flow (F105)', 'Tray 3 Temperature (T106)', ...
-                         'Tray 5 Temperature (T105)', 'Tray 8 Temperature (T104)'});
-                    
+                    status_word = 'normal';
+                    percent_away = 0;
+                end
+                if isKey(var_names, feature_codes{k})
+                    display_name = var_names(feature_codes{k});
+                else
+                    display_name = feature_codes{k};
+                end
+                alarm_status_labels{k} = sprintf('%s=%s %.1f%%', display_name, status_word, percent_away);
+            end
+            alarm_status_text = strjoin(alarm_status_labels, ', ');
+            llm_process_context = sprintf('%s Alarm status (current): %s. Valve guide: F101 uses V102, F102 uses V301, F105 uses V201, reflux uses V401.', llm_process_context, alarm_status_text);
+
+            % Fast prediction call (no IG / no LLM)
+            if (time_temp - ai_last_pred_time) >= ai_pred_interval_s && ~ai_pred_inflight
+                ai_pred_future = parfeval(backgroundPool, @predict_fault_api, 4, ...
+                    process_vars, ...
+                    'http://127.0.0.1:5000/predict', ...
+                    false, ...
+                    '', ...
+                    false);
+                ai_pred_inflight = true;
+            end
+
+            if ai_pred_inflight && ~isempty(ai_pred_future) && strcmp(ai_pred_future.State, 'finished')
+                [predicted_fault_fast, probabilities_fast, confidence_fast, ~] = fetchOutputs(ai_pred_future);
+                ai_pred_inflight = false;
+
+                if predicted_fault_fast ~= -1
+                    ai_cached_predicted_fault = predicted_fault_fast;
+                    ai_cached_probabilities = probabilities_fast;
+                    ai_cached_confidence = confidence_fast;
+                    ai_last_pred_time = time_temp;
+
+                    % Store prediction history only when we actually call the API
+                    fault_prediction_history(end+1) = predicted_fault_fast;
+                    time_prediction_history(end+1) = time_temp;
+                end
+            end
+
+            % Use cached prediction state for GUI
+            predicted_fault = ai_cached_predicted_fault;
+            probabilities = ai_cached_probabilities;
+            confidence = ai_cached_confidence;
+            explanation = ai_cached_explanation;
+
+            % Slow explanation call (IG always, LLM only in condition 3) - only when a fault is detected
+            if predicted_fault ~= 0
+                do_explain = (time_temp - ai_last_explain_time) >= ai_explain_interval_s;
+                do_llm_allowed = (condition_mode == 3);
+                do_llm = do_llm_allowed && ((time_temp - ai_last_llm_time) >= ai_llm_interval_s);
+
+                if do_explain && ~ai_llm_inflight
+                    ai_llm_future = parfeval(backgroundPool, @predict_fault_api, 4, ...
+                        process_vars, ...
+                        'http://127.0.0.1:5000/predict', ...
+                        do_llm, ...
+                        llm_process_context, ...
+                        true);
+                    ai_llm_inflight = true;
+                    ai_llm_request_includes_llm = do_llm;
+                end
+
+                if ai_llm_inflight && ~isempty(ai_llm_future) && strcmp(ai_llm_future.State, 'finished')
+                    [~, ~, ~, explanation_full] = fetchOutputs(ai_llm_future);
+                    ai_llm_inflight = false;
+
+                    if ~isempty(fieldnames(explanation_full))
+                        new_top_vars_key = '';
+                        if isfield(explanation_full, 'top_features') && ~isempty(explanation_full.top_features)
+                            keys = cell(1, length(explanation_full.top_features));
+                            for k = 1:length(explanation_full.top_features)
+                                if isfield(explanation_full.top_features(k), 'feature_code')
+                                    keys{k} = explanation_full.top_features(k).feature_code;
+                                else
+                                    keys{k} = explanation_full.top_features(k).feature;
+                                end
+                            end
+                            new_top_vars_key = strjoin(keys, '|');
+                        end
+
+                        if predicted_fault ~= ai_last_explain_fault || ~strcmp(new_top_vars_key, ai_last_explain_top_vars_key)
+                            ai_cached_explanation = explanation_full;
+                            explanation = explanation_full;
+                            ai_last_explain_fault = predicted_fault;
+                            ai_last_explain_top_vars_key = new_top_vars_key;
+                        end
+
+                        ai_last_explain_time = time_temp;
+                        if ai_llm_request_includes_llm
+                            ai_last_llm_time = time_temp;
+                        end
+                    end
+                end
+            end
+            
+            % Always show explanation text for every task
+            if predicted_fault == 0
+                normal_text = sprintf('\n\n\n\n\n    PROCESS NORMAL');
+                set(fault_prediction_axes, 'String', '', 'Visible', 'off');
+                set(fault_prediction_text, 'Position', [0.03 0.15 0.94 0.77]);
+                wrapped_text = textwrap(fault_prediction_text, {normal_text});
+                set(fault_prediction_text, 'String', wrapped_text);
+                set(fault_prediction_text, 'ForegroundColor', [0 0.6 0]); % Green color
+                set(fault_prediction_text, 'FontSize', 14);
+                set(fault_prediction_text, 'HorizontalAlignment', 'center');
+                set(fault_consequence_label, 'Visible', 'off');
+                set(fault_consequence_text, 'String', '', 'Visible', 'off');
+                set(fault_action_label, 'Visible', 'off');
+                set(fault_action_text, 'String', '', 'Visible', 'off');
+            else
+                fault_name = get_fault_name(predicted_fault);
+                if condition_mode == 3
+                    % LLM condition: show ONLY LLM explanation (no quantitative top-feature list)
+                    fault_text = '';
+                    if isfield(explanation, 'llm_interpretation') && ~isempty(explanation.llm_interpretation)
+                        llm_text = explanation.llm_interpretation;
+                        llm_text = strrep(llm_text, 'Response:', '');
+                        llm_text = strrep(llm_text, 'Corrective action:', '');
+                        llm_text = strrep(llm_text, 'Corrective Action:', '');
+                        llm_text = strrep(llm_text, sprintf('\n'), ' ');
+                        llm_text = strtrim(llm_text);
+                        ai_cached_llm_text = llm_text;
+                    elseif ~isempty(ai_cached_llm_text)
+                        llm_text = ai_cached_llm_text;
+                    else
+                        llm_text = '';
+                    end
+
+                    top_vars_parts = {};
+                    action_suggestions = {};
+                    if isfield(explanation, 'top_features') && ~isempty(explanation.top_features)
+                        top_3 = explanation.top_features(1:min(3, length(explanation.top_features)));
+                        for j = 1:length(top_3)
+                            if isfield(top_3(j), 'feature_code')
+                                feature_code = top_3(j).feature_code;
+                            else
+                                feature_code = top_3(j).feature;
+                            end
+
+                            if isKey(var_names, feature_code)
+                                feature_name = var_names(feature_code);
+                            else
+                                feature_name = feature_code;
+                            end
+
+                            idx_match = find(strcmp(feature_codes, feature_code), 1);
+                            if ~isempty(idx_match)
+                                if alarm_var_store(idx_match, i) > alarm_upper_limit(idx_match)
+                                    status_word = 'increased';
+                                    percent_away = ((alarm_var_store(idx_match, i) - alarm_upper_limit(idx_match)) / alarm_upper_limit(idx_match)) * 100;
+                                elseif alarm_var_store(idx_match, i) < alarm_lower_limit(idx_match)
+                                    status_word = 'decreased';
+                                    percent_away = ((alarm_lower_limit(idx_match) - alarm_var_store(idx_match, i)) / alarm_lower_limit(idx_match)) * 100;
+                                else
+                                    status_word = 'normal';
+                                    percent_away = 0;
+                                end
+                            else
+                                status_word = 'normal';
+                                percent_away = 0;
+                            end
+
+                            if strcmp(status_word, 'increased')
+                                direction_symbol = char(8593);
+                            elseif strcmp(status_word, 'decreased')
+                                direction_symbol = char(8595);
+                            else
+                                continue;
+                            end
+
+                            top_vars_parts{end+1} = sprintf('%s %s %.1f%% (%s)', feature_name, status_word, percent_away, direction_symbol);
+
+                            if contains(feature_code, 'F101')
+                                if strcmp(status_word, 'decreased')
+                                    action_suggestions{end+1} = 'Increase V102 to restore reactor feed flow.';
+                                elseif strcmp(status_word, 'increased')
+                                    action_suggestions{end+1} = 'Reduce V102 to lower reactor feed flow.';
+                                end
+                            elseif contains(feature_code, 'F102')
+                                if strcmp(status_word, 'decreased')
+                                    action_suggestions{end+1} = 'Increase V301 to restore coolant flow.';
+                                elseif strcmp(status_word, 'increased')
+                                    action_suggestions{end+1} = 'Reduce V301 to lower coolant flow.';
+                                end
+                            elseif contains(feature_code, 'F105')
+                                if strcmp(status_word, 'decreased')
+                                    action_suggestions{end+1} = 'Increase V201 to raise flow to distillation.';
+                                elseif strcmp(status_word, 'increased')
+                                    action_suggestions{end+1} = 'Reduce V201 to lower flow to distillation.';
+                                end
+                            elseif contains(feature_code, 'T101') || contains(feature_code, 'T102') || contains(feature_code, 'T103')
+                                action_suggestions{end+1} = 'Adjust V301 to stabilize reactor temperature.';
+                            elseif contains(feature_code, 'T104') || contains(feature_code, 'T105') || contains(feature_code, 'T106')
+                                action_suggestions{end+1} = 'Adjust V401 to stabilize tray temperatures.';
+                            elseif contains(feature_code, 'C101')
+                                action_suggestions{end+1} = 'Adjust V102 and V201 to bring concentration back to range.';
+                            elseif contains(feature_code, 'L101')
+                                action_suggestions{end+1} = 'Adjust V201 to stabilize reactor level.';
+                            end
+                        end
+                    end
+
+                    top_vars_line = strjoin(top_vars_parts, ', ');
+                    cons_text = '';
+                    corr_text = '';
+                    if ~isempty(llm_text)
+                        llm_parts = strsplit(llm_text, '|');
+                        if length(llm_parts) >= 2
+                            cons_text = strtrim(strrep(llm_parts{1}, 'Effects:', ''));
+                            corr_text = strtrim(strrep(llm_parts{2}, 'Corrective action:', ''));
+                        else
+                            if contains(llm_text, 'Corrective action:', 'IgnoreCase', true)
+                                split_parts = strsplit(llm_text, 'Corrective action:');
+                                cons_text = strtrim(strrep(split_parts{1}, 'Effects:', ''));
+                                if length(split_parts) >= 2
+                                    corr_text = strtrim(split_parts{2});
+                                end
+                            else
+                                corr_text = llm_text;
+                            end
+                        end
+                    end
+
+                    if startsWith(cons_text, 'Effects:', 'IgnoreCase', true)
+                        cons_text = strtrim(strrep(cons_text, 'Effects:', ''));
+                    end
+                    if startsWith(corr_text, 'Corrective action:', 'IgnoreCase', true)
+                        corr_text = strtrim(strrep(corr_text, 'Corrective action:', ''));
+                    end
+                    if isempty(cons_text) && contains(corr_text, 'Effects:', 'IgnoreCase', true)
+                        cons_text = strtrim(strrep(corr_text, 'Effects:', ''));
+                        corr_text = '';
+                    end
+
+                    if contains(cons_text, '%') || ~isempty(regexp(cons_text, '\b([FCTLV]\d{3})\b', 'once'))
+                        cons_text = '';
+                    end
+
+                    if isempty(cons_text) || length(strtrim(cons_text)) < 55
+                        lower_fault = lower(fault_name);
+                        if contains(lower_fault, 'feed flow reduction') || contains(lower_fault, 'feed flow leakage')
+                            cons_text = 'Reduced reactor feed can lower conversion throughput and disturb composition control. Continued deviation can reduce distillation separation quality.';
+                        elseif contains(lower_fault, 'reaction rate change')
+                            cons_text = 'A reaction-rate mismatch can shift concentration and temperature profiles away from target. This increases risk of off-spec product and unstable operation.';
+                        elseif contains(lower_fault, 'coolant flow reduction') || contains(lower_fault, 'coolant flow leakage')
+                            cons_text = 'Insufficient cooling can cause reactor temperatures to drift upward. Prolonged temperature drift can degrade conversion consistency and product quality.';
+                        elseif contains(lower_fault, 'distillation flow reduction') || contains(lower_fault, 'distillation feed valve stuck')
+                            cons_text = 'Reduced feed to distillation can unbalance column operation and separation efficiency. Product purity may decline if the condition persists.';
+                        elseif contains(lower_fault, 'reflux valve set high') || contains(lower_fault, 'reflux valve set low')
+                            cons_text = 'Incorrect reflux ratio can upset tray temperature profiles and separation performance. This can increase off-spec product risk.';
+                        elseif contains(lower_fault, 'reboiler power reduction')
+                            cons_text = 'Lower reboiler duty weakens vapor generation and separation driving force. Distillate purity and recovery can degrade over time.';
+                        elseif contains(lower_fault, 'feed flow increase') || contains(lower_fault, 'coolant flow increase')
+                            cons_text = 'The process is operating above nominal flow conditions and may move away from balanced steady state. If not corrected, control effort and quality variability can increase.';
+                        else
+                            cons_text = 'The detected abnormal condition can reduce process stability and product consistency. Prompt correction is recommended to prevent performance loss.';
+                        end
+                    end
+
+                    if ~isempty(action_suggestions)
+                        action_suggestions = unique(action_suggestions, 'stable');
+                        if length(action_suggestions) == 1
+                            corr_text = sprintf('%s Monitor key variables after adjustment.', action_suggestions{1});
+                        else
+                            corr_text = sprintf('%s %s', action_suggestions{1}, action_suggestions{2});
+                        end
+                    end
+
+                    if ~isempty(cons_text)
+                        ai_cached_cons_text = cons_text;
+                    elseif ~isempty(ai_cached_cons_text)
+                        cons_text = ai_cached_cons_text;
+                    else
+                        cons_text = 'Not available.';
+                    end
+
+                    if ~isempty(corr_text)
+                        ai_cached_corr_text = corr_text;
+                    elseif ~isempty(ai_cached_corr_text)
+                        corr_text = ai_cached_corr_text;
+                    else
+                        corr_text = 'Not available.';
+                    end
+
+                    summary_lines = {sprintf('%s due to', fault_name)};
+                    if ~isempty(top_vars_parts)
+                        summary_lines = [summary_lines, cellfun(@(s) [char(8226) ' ' s], top_vars_parts, 'UniformOutput', false)];
+                    end
+
+                    set(fault_prediction_axes, 'String', 'Fault Predicted:', 'Position', [0.03 0.86 0.94 0.05], 'Visible', 'on');
+                    set(fault_prediction_text, 'Position', [0.03 0.60 0.94 0.23]);
+                    set(fault_prediction_text, 'String', textwrap(fault_prediction_text, summary_lines));
+                    set(fault_prediction_text, 'ForegroundColor', [0.35 0.35 0.35]);
+                    set(fault_prediction_text, 'FontWeight', 'normal');
+
+                    set(fault_consequence_label, 'Visible', 'on');
+                    set(fault_consequence_text, 'Visible', 'on');
+                    set(fault_action_label, 'Visible', 'on');
+                    set(fault_action_text, 'Visible', 'on');
+
+                    set(fault_consequence_label, 'Position', [0.03 0.53 0.3 0.06]);
+                    set(fault_consequence_text, 'Position', [0.03 0.35 0.94 0.16]);
+                    set(fault_action_label, 'Position', [0.03 0.24 0.35 0.06]);
+                    set(fault_action_text, 'Position', [0.03 0.06 0.94 0.14]);
+
+                    set(fault_consequence_text, 'String', textwrap(fault_consequence_text, {cons_text}));
+                    set(fault_action_text, 'String', textwrap(fault_action_text, {corr_text}));
+                else
                     fault_text = sprintf('%s\n', fault_name);
                     fault_text = sprintf('%s═══════════════════════════\n', fault_text);
-                    
+                    % Quantitative condition: show top features
                     if isfield(explanation, 'top_features') && ~isempty(explanation.top_features)
                         top_3 = explanation.top_features(1:min(3, length(explanation.top_features)));
                         for j = 1:length(top_3)
@@ -676,62 +1025,29 @@ while toc(tic_start) < time_duration_seconds % for defining how much long a scen
                             fault_text = sprintf('%s\n%d. %s', fault_text, j, feature_name);
                         end
                     end
-                    
-                    set(fault_prediction_text, 'String', fault_text);
-                    set(fault_prediction_text, 'ForegroundColor', [0.545 0.271 0.075]); % Brown color
-                    set(fault_prediction_text, 'FontSize', 12);
                 end
-                
-            else % task_no_current == 7
-                % TASK 7: Show both alarms and full explanation (full functionality)
-                if predicted_fault == 0
-                    % Normal operation - show centered green text only
-                    normal_text = sprintf('\n\n\n\n\n    PROCESS NORMAL');
-                    set(fault_prediction_text, 'String', normal_text);
-                    set(fault_prediction_text, 'ForegroundColor', [0 0.6 0]); % Green color
-                    set(fault_prediction_text, 'FontSize', 16);
-                    set(fault_prediction_text, 'HorizontalAlignment', 'center');
-                    fprintf('[Time: %.2fs] AI Prediction: Normal Operation | Confidence: %.3f\n', ...
-                            time_temp, confidence);
+
+                if condition_mode == 3
+                    % No wrapping when using separate fields
                 else
-                    % Fault detected - show fault name and top 3 variables with human-readable names
-                    fault_name = get_fault_name(predicted_fault);
-                    
-                    % Mapping of variable codes to human-readable names
-                    var_names = containers.Map(...
-                        {'F101_FeedFlow_Lhr', 'F102_CoolantFlow_Lhr', 'T101_CoolantTemp_C', ...
-                         'T102_JacketTemp_C', 'T103_CSTRTemp_C', 'C101_EthanolConc_molL', ...
-                         'L101_CSTRLevel_m', 'F105_DistillFlow_Lhr', 'T106_Tray3Temp_C', ...
-                         'T105_Tray5Temp_C', 'T104_Tray8Temp_C'}, ...
-                        {'Reactor Feed Flow (F101)', 'Reactor Coolant Flow (F102)', 'Reactor Coolant Temperature (T101)', ...
-                         'Reactor Jacket Temperature (T102)', 'Reactor Temperature (T103)', 'Reactor Concentration (C101)', ...
-                         'Reactor Level (L101)', 'Distillation Feed Flow (F105)', 'Tray 3 Temperature (T106)', ...
-                         'Tray 5 Temperature (T105)', 'Tray 8 Temperature (T104)'});
-                    
-                    % Build formatted text with fault name only
-                    fault_text = sprintf('%s\n', fault_name);
-                    fault_text = sprintf('%s═══════════════════════════\n', fault_text);
-                    
-                    if isfield(explanation, 'top_features') && ~isempty(explanation.top_features)
-                        top_3 = explanation.top_features(1:min(3, length(explanation.top_features)));
-                        for j = 1:length(top_3)
-                            feature_code = top_3(j).feature;
-                            % Get human-readable name, fallback to original if not in map
-                            if isKey(var_names, feature_code)
-                                feature_name = var_names(feature_code);
-                            else
-                                feature_name = feature_code;
-                            end
-                            fault_text = sprintf('%s\n%d. %s', fault_text, j, feature_name);
-                        end
-                    end
-                    
-                    set(fault_prediction_text, 'String', fault_text);
-                    set(fault_prediction_text, 'ForegroundColor', [0.545 0.271 0.075]); % Brown color
-                    set(fault_prediction_text, 'FontSize', 12);
-                    fprintf('[Time: %.2fs] AI Prediction: %s | Confidence: %.3f\n', ...
-                            time_temp, fault_name, confidence);
+                    wrapped_text = textwrap(fault_prediction_text, {fault_text});
+                    set(fault_prediction_text, 'String', wrapped_text);
+                    set(fault_prediction_text, 'FontWeight', 'bold');
                 end
+                if condition_mode ~= 3
+                    set(fault_prediction_axes, 'String', '', 'Visible', 'off');
+                end
+                set(fault_prediction_text, 'ForegroundColor', [0.35 0.35 0.35]);
+                set(fault_prediction_text, 'FontSize', 10);
+                set(fault_prediction_text, 'HorizontalAlignment', 'left');
+
+                if condition_mode ~= 3
+                    set(fault_consequence_label, 'Visible', 'off');
+                    set(fault_consequence_text, 'String', '', 'Visible', 'off');
+                    set(fault_action_label, 'Visible', 'off');
+                    set(fault_action_text, 'String', '', 'Visible', 'off');
+                end
+            end
             end
         catch ME
             % If prediction fails, just continue without crashing
