@@ -10,6 +10,17 @@
 % operator training, and behavioral analysis in process control environments.
 %
 %==========================================================================
+% RECENT REPOSITORY UPDATES (MAR-2026)
+%==========================================================================
+%
+% Documentation and module status updates:
+%   • explaination_module\README.md restored and updated to match current API code.
+%   • explaination_module\llm\README.md restored and updated to match current LLM service code.
+%   • explaination_module\llm_async\ is currently an empty placeholder directory.
+%   • explaination_module\requirements.txt is currently pinned from local environment
+%     using pip freeze (full dependency lock-style list).
+%
+%==========================================================================
 % SYSTEM ARCHITECTURE
 %==========================================================================
 %

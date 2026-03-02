@@ -1,82 +1,61 @@
-# Fault Prediction API
+# Fault Prediction API (explaination_module)
 
-Simple REST API for fault prediction in ethanol-water distillation process.
+FastAPI service for fault prediction in the ethanol-water simulator, with Integrated Gradients (IG) explanations and optional LLM interpretation.
+
+## Current Module Layout
+
+- `api_server.py` - Main prediction API (`/predict`)
+- `ig.py` - Integrated Gradients implementation
+- `model_training.py` - Model training script
+- `model_artifacts/` - Saved model/scaler/label-map/baseline
+- `llm/` - Optional LLM interpretation microservice
+- `llm_async/` - Reserved placeholder (currently empty)
+- `requirements.txt` - Pinned Python dependencies
 
 ## Setup
 
-1. Install dependencies:
-```bash
+From `ethanol-simulator/explaination_module`:
+
+```powershell
+py -3.11 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-2. Start the server:
-```bash
+## Run the Prediction API
+
+```powershell
 python api_server.py
 ```
 
-This now runs in auto-reload mode, so code changes restart the API automatically.
+Server starts at `http://127.0.0.1:5000` (reload enabled).
 
-Server runs on `http://127.0.0.1:5000`
+## Endpoints
 
-## Usage
+- `GET /` - Service status
+- `GET /health` - Model/scaler readiness
+- `POST /predict` - Fault prediction + explanation
 
-### From MATLAB
+## `/predict` Request
 
-```matlab
-% Make prediction
-vars = [700, 150, 20, 25, 500, 79, 88, 99, 30, 54000, 1.2];
-[label, probs, conf] = predict_fault_api(vars);
-```
-
-### API Endpoints
-
-**Health Check:**
-```
-GET http://127.0.0.1:5000/health
-```
-
-**Prediction:**
-```
-POST http://127.0.0.1:5000/predict
-Content-Type: application/json
-
-{
-  "features": [700, 150, 20, 25, 500, 79, 88, 99, 30, 54000, 1.2]
-}
-```
-
-**Response Format:**
 ```json
 {
-  "fault_label": 0,
-  "probabilities": [0.95, 0.02, ...],
-  "confidence": 0.95,
-  "explanation": {
-    "method": "integrated_gradients",
-    "feature_attributions": [...],
-    "top_features": [
-      {"feature": "F101_FeedFlow_Lhr", "attribution": 0.72, "value": 700},
-      {"feature": "T103_CSTRTemp_C", "attribution": 0.55, "value": 30},
-      {"feature": "T104_Tray8Temp_C", "attribution": 0.85, "value": 99}
-    ],
-    "baseline": "mean_of_normal_class"
-  },
-  "status": "success"
+  "features": [700, 150, 20, 25, 500, 79, 88, 99, 30, 54000, 1.2],
+  "include_ig": true,
+  "include_llm": false,
+  "process_context": "optional custom process context"
 }
 ```
 
-Note: `top_features` are sorted by **process flow order** (upstream → downstream), not by attribution magnitude.
+Notes:
+- `features` must contain exactly 11 values.
+- `include_ig` defaults to `true`.
+- `include_llm` defaults to `false`.
+- If `include_llm=true`, this API calls `LLM_INTERPRET_URL` (default: `http://127.0.0.1:8001/interpret`).
 
-## Files
+## March 2026 Documentation Update
 
-- `api_server.py` - FastAPI server
-- `model_training.py` - Model training script
-- `model_artifacts/` - Trained model files
-- `requirements.txt` - Python dependencies
-
-## Notes
-
-- Server must be running for MATLAB to make predictions
-- Model loads once at startup for fast predictions
-- Returns fault label, probabilities, confidence score, and feature explanations
-- **Top features are sorted by process flow order (upstream → downstream)** to reflect physical causality in the system, not just by attribution magnitude
+- Restored this README after prior deletion.
+- Requirements are currently pinned from local environment (`pip freeze`).
+- Consolidated and synced documentation with current API behavior (`include_llm`, `include_ig`, process-flow-sorted top features).
