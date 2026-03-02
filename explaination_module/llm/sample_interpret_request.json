@@ -1,0 +1,25 @@
+{
+  "process_name": "Ethanol-Water Distillation",
+  "process_context": "CSTR and distillation process where coolant-side disturbances first affect jacket temperature, then reactor temperature, then distillation tray temperatures.",
+  "ig_result": {
+    "fault_label": 4,
+    "confidence": 0.93,
+    "top_features": [
+      {
+        "feature": "F102_CoolantFlow_Lhr",
+        "attribution": -0.42,
+        "value": 126.0
+      },
+      {
+        "feature": "T102_JacketTemp_C",
+        "attribution": 0.35,
+        "value": 32.1
+      },
+      {
+        "feature": "T103_CSTRTemp_C",
+        "attribution": 0.29,
+        "value": 36.7
+      }
+    ]
+  }
+}
