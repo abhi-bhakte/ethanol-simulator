@@ -57,10 +57,15 @@ class IntegratedGradients:
         if baseline is None:
             raise ValueError("Baseline must be provided either at initialization or during explain call")
 
-        alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps + 1)
-        alphas = tf.cast(alphas, tf.float64)
+        # Keep dtype consistent with model inputs (float32 preferred for speed/GPU)
+        dtype = sample.dtype if hasattr(sample, "dtype") else tf.float32
+        baseline = tf.cast(baseline, dtype)
+        sample = tf.cast(sample, dtype)
 
-        gradient_batches = tf.TensorArray(tf.float64, size=m_steps + 1)
+        alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps + 1)
+        alphas = tf.cast(alphas, dtype)
+
+        gradient_batches = tf.TensorArray(dtype, size=m_steps + 1)
 
         for alpha in tf.range(0, len(alphas), self.batch_size):
             from_ = alpha
@@ -111,9 +116,10 @@ class IntegratedGradients:
         num_samples = len(samples)
         num_features = len(baseline)
 
-        ig_list = tf.constant([0.0] * num_features, dtype='float64')
-        sb_list = tf.constant([0.0] * num_features, dtype='float64')
-        ag_list = tf.constant([0.0] * num_features, dtype='float64')
+        dtype = tf.convert_to_tensor(samples[0]).dtype if len(samples) > 0 else tf.float32
+        ig_list = tf.constant([0.0] * num_features, dtype=dtype)
+        sb_list = tf.constant([0.0] * num_features, dtype=dtype)
+        ag_list = tf.constant([0.0] * num_features, dtype=dtype)
 
         for i in range(num_samples):
             i_g, sb, ag = self.explain(
@@ -203,6 +209,6 @@ class IntegratedGradients:
         Returns:
             Integrated gradients approximation.
         """
-        grads = (gradients[:-1] + gradients[1:]) / tf.constant(2.0, dtype='float64')
+        grads = (gradients[:-1] + gradients[1:]) / tf.cast(2.0, gradients.dtype)
         integrated_gradients = tf.math.reduce_mean(grads, axis=0)
         return integrated_gradients
